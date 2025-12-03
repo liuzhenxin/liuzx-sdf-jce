@@ -1,0 +1,35 @@
+{
+  "defaultVendor": "Dysx",
+  "vendors": {
+    "Sansec": {
+      "platforms": {
+        "linux": {
+          "x86_64": "/opt/sansec/linux_x86_64/libsdf.so",
+          "aarch64": "/opt/sansec/linux_aarch64/libsdf.so"
+        },
+        "windows": {
+          "x86_64": "C:/Sansec/windows_x86_64/sdf.dll"
+        },
+        "macos": {
+          "x86_64": "/opt/sansec/macos_x86_64/libsdf.dylib",
+          "aarch64": "/opt/sansec/macos_aarch64/libsdf.dylib"
+        }
+      }
+    },
+    "Dysx": {
+      "platforms": {
+        "linux": {
+          "x86_64": "/home/gemotech/hsm/libsdf/libsdf.so",
+          "aarch64": "/home/gemotech/soft/libsdf/libsdf.so"
+        },
+        "windows": {
+          "x86_64": "C:/Sansec/windows_x86_64/sdf.dll"
+        },
+        "macos": {
+          "x86_64": "/opt/sansec/macos_x86_64/libsdf.dylib",
+          "aarch64": "/opt/sansec/macos_aarch64/libsdf.dylib"
+        }
+      }
+    }
+  }
+}
