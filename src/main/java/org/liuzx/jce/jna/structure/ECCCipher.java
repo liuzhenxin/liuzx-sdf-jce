@@ -7,9 +7,9 @@ import java.util.List;
 
 @Structure.FieldOrder({"x", "y", "M", "L", "C"})
 public class ECCCipher extends Structure {
-    // ECC公钥x坐标，大端存储
+    // ECC公钥x坐标，大端存储。实际坐标为32字节，需要前32字节补0，后32字节存放数据。
     public byte[] x = new byte[64];
-    // ECC公钥y坐标，大端存储
+    // ECC公钥y坐标，大端存储。实际坐标为32字节，需要前32字节补0，后32字节存放数据。
     public byte[] y = new byte[64];
     // HASH值，大端存储
     public byte[] M = new byte[32];

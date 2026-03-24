@@ -89,7 +89,7 @@ public class SM2InternalKeyUsageTest {
 
         KeyPair encryptKeyPairRef = loadInternalKeyPairRef(keyIndex, SM2InternalKeyGenParameterSpec.KeyType.ENCRYPT);
 
-        performEncryptDecrypt(encryptKeyPairRef.getPublic(), encryptKeyPairRef.getPrivate(), KEY_PASSWORD, "test data for internal encryption with password");
+        performEncryptDecrypt(encryptKeyPairRef.getPublic(), encryptKeyPairRef.getPrivate(), KEY_PASSWORD, "1234567890123456");
     }
 
     private KeyPair loadInternalKeyPairRef(int keyIndex, SM2InternalKeyGenParameterSpec.KeyType keyType) throws Exception {

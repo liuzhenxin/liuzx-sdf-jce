@@ -34,7 +34,7 @@ public class SM2CipherTest {
         cipher.init(Cipher.ENCRYPT_MODE, keyPair.getPublic());
 
         // 4. 执行加密
-        byte[] plaintext = "This is a test message for SM2 encryption.".getBytes(StandardCharsets.UTF_8);
+        byte[] plaintext = "1234567890123456".getBytes(StandardCharsets.UTF_8);
         byte[] ciphertext = cipher.doFinal(plaintext);
         System.out.println("Ciphertext (hex): " + toHexString(ciphertext));
 

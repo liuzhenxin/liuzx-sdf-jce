@@ -25,5 +25,15 @@ public class LiuZXProvider extends Provider {
         put("Cipher.SM4", "org.liuzx.jce.provider.symmetric.SM4CipherSpi");
         put("Cipher.SM4/ECB/PKCS5Padding", "org.liuzx.jce.provider.symmetric.SM4CipherSpi");
         put("Cipher.SM4/CBC/PKCS5Padding", "org.liuzx.jce.provider.symmetric.SM4CipherSpi");
+        
+        // --- RSA ---
+        put("KeyPairGenerator.RSA", "org.liuzx.jce.provider.asymmetric.rsa.RSAKeyPairGeneratorSpi");
+        put("Signature.SHA1withRSA", "org.liuzx.jce.provider.asymmetric.rsa.RSASignatureSpi$SHA1withRSA");
+        put("Signature.SHA256withRSA", "org.liuzx.jce.provider.asymmetric.rsa.RSASignatureSpi$SHA256withRSA");
+        put("Signature.SHA512withRSA", "org.liuzx.jce.provider.asymmetric.rsa.RSASignatureSpi$SHA512withRSA");
+        put("Signature.MD5withRSA", "org.liuzx.jce.provider.asymmetric.rsa.RSASignatureSpi$MD5withRSA");
+        put("Cipher.RSA", "org.liuzx.jce.provider.asymmetric.rsa.RSACipherSpi");
+        put("Cipher.RSA/ECB/PKCS1Padding", "org.liuzx.jce.provider.asymmetric.rsa.RSACipherSpi");
+        put("Cipher.RSA/None/NoPadding", "org.liuzx.jce.provider.asymmetric.rsa.RSACipherSpi");
     }
 }

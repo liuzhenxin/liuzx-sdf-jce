@@ -147,22 +147,48 @@ public final class ASN1Util {
     public static ECCCipher fromASN1Ciphertext(byte[] asn1Ciphertext) throws BadPaddingException {
         try {
             int offset = 0;
-            if (asn1Ciphertext[offset++] != ASN1_SEQUENCE) throw new BadPaddingException("Not a valid ASN.1 SEQUENCE");
+            if (asn1Ciphertext[offset++] != ASN1_SEQUENCE) {
+                throw new BadPaddingException("Not a valid ASN.1 SEQUENCE");
+            }
+    
             int seqLength = readLength(asn1Ciphertext, offset);
             offset += calculateLengthBytes(seqLength);
-            byte[] x = readTLV(asn1Ciphertext, offset, ASN1_INTEGER);
-            offset += calculateTLVLength(x, true);
-            byte[] y = readTLV(asn1Ciphertext, offset, ASN1_INTEGER);
-            offset += calculateTLVLength(y, true);
+    
+            // 1. Read C1x (INTEGER)
+            byte[] c1x = readTLV(asn1Ciphertext, offset, ASN1_INTEGER);
+            offset += calculateTLVLength(c1x, true);
+    
+            // 2. Read C1y (INTEGER)
+            byte[] c1y = readTLV(asn1Ciphertext, offset, ASN1_INTEGER);
+            offset += calculateTLVLength(c1y, true);
+    
+            // 3. Read C3 (OCTET STRING)
             byte[] c3 = readTLV(asn1Ciphertext, offset, ASN1_OCTET_STRING);
             offset += calculateTLVLength(c3, false);
+    
+            // 4. Read C2 (OCTET STRING)
             byte[] c2 = readTLV(asn1Ciphertext, offset, ASN1_OCTET_STRING);
+            // offset += calculateTLVLength(c2, false); // No need to update offset for the last element
+    
             ECCCipher eccCipher = new ECCCipher();
-            System.arraycopy(x, 0, eccCipher.x, eccCipher.x.length - x.length, x.length);
-            System.arraycopy(y, 0, eccCipher.y, eccCipher.y.length - y.length, y.length);
+    
+            // Copy C1x to eccCipher.x (last 32 bytes of a 64-byte array)
+            int c1xOffset = (c1x.length > 32 && c1x[0] == 0) ? 1 : 0;
+            int c1xLen = c1x.length - c1xOffset;
+            System.arraycopy(c1x, c1xOffset, eccCipher.x, eccCipher.x.length - c1xLen, c1xLen);
+    
+            // Copy C1y to eccCipher.y (last 32 bytes of a 64-byte array)
+            int c1yOffset = (c1y.length > 32 && c1y[0] == 0) ? 1 : 0;
+            int c1yLen = c1y.length - c1yOffset;
+            System.arraycopy(c1y, c1yOffset, eccCipher.y, eccCipher.y.length - c1yLen, c1yLen);
+    
+            // Copy C3 to eccCipher.M
             System.arraycopy(c3, 0, eccCipher.M, 0, c3.length);
+    
+            // Copy C2 to eccCipher.C and set length
             eccCipher.L = c2.length;
             System.arraycopy(c2, 0, eccCipher.C, 0, c2.length);
+
             return eccCipher;
         } catch (Exception e) {
             throw new BadPaddingException("Failed to decode ASN.1 ciphertext: " + e.getMessage());

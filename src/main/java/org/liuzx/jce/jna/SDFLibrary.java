@@ -8,6 +8,8 @@ import org.liuzx.jce.jna.structure.ECCCipher;
 import org.liuzx.jce.jna.structure.ECCrefPrivateKey;
 import org.liuzx.jce.jna.structure.ECCrefPublicKey;
 import org.liuzx.jce.jna.structure.ECCSignature;
+import org.liuzx.jce.jna.structure.RSArefPrivateKey;
+import org.liuzx.jce.jna.structure.RSArefPublicKey;
 import org.liuzx.jce.provider.SDFConfig;
 
 public interface SDFLibrary extends Library {
@@ -20,8 +22,6 @@ public interface SDFLibrary extends Library {
         static final SDFLibrary INSTANCE = Native.load(SDFConfig.getInstance().getDefaultLibraryPath(), SDFLibrary.class);
     }
 
-    // ... (other methods)
-
     // --- Asymmetric ECC Operations ---
     int SDF_ExternalSign_ECC(Pointer hSessionHandle, int uiAlgID, ECCrefPrivateKey pucPrivateKey, byte[] pucData, int uiDataLength, ECCSignature.ByReference pucSignature);
     int SDF_ExternalVerify_ECC(Pointer hSessionHandle, int uiAlgID, ECCrefPublicKey pucPublicKey, byte[] pucData, int uiDataLength, ECCSignature pucSignature);
@@ -32,7 +32,16 @@ public interface SDFLibrary extends Library {
     int SDF_ExternalDecrypt_ECC(Pointer hSessionHandle, int uiAlgID, ECCrefPrivateKey pucPrivateKey, ECCCipher pucEncData, byte[] pucData, IntByReference puiDataLength);
     int SDF_InternalDecrypt_ECC(Pointer hSessionHandle, int uiKeyIndex, int uiAlgID, ECCCipher pucEncData, byte[] pucData, IntByReference puiDataLength);
 
-    // ... (other methods)
+    // --- Asymmetric RSA Operations ---
+    int SDF_GenerateKeyPair_RSA(Pointer hSessionHandle, int uiKeyBits, RSArefPublicKey.ByReference pucPublicKey, RSArefPrivateKey.ByReference pucPrivateKey);
+    int SDF_ExportEncPublicKey_RSA(Pointer hSessionHandle, int uiKeyIndex, RSArefPublicKey.ByReference pucPublicKey);
+    int SDF_InternalSign_RSA(Pointer hSessionHandle, int uiKeyIndex, byte[] pucData, int uiDataLength, byte[] pucSignature, IntByReference puiSignatureLength);
+    int SDF_ExternalVerify_RSA(Pointer hSessionHandle, RSArefPublicKey.ByReference pucPublicKey, byte[] pucData, int uiDataLength, byte[] pucSignature, int uiSignatureLength);
+    int SDF_ExternalPublicKeyOperation_RSA(Pointer hSessionHandle, RSArefPublicKey.ByReference pucPublicKey, byte[] pucDataInput, int uiInputLength, byte[] pucDataOutput, IntByReference puiOutputLength);
+    int SDF_InternalPublicKeyOperation_RSA(Pointer hSessionHandle, int uiKeyIndex, byte[] pucDataInput, int uiInputLength, byte[] pucDataOutput, IntByReference puiOutputLength);
+    int SDF_ExternalPrivateKeyOperation_RSA(Pointer hSessionHandle, RSArefPrivateKey.ByReference pucPrivateKey, byte[] pucDataInput, int uiInputLength, byte[] pucDataOutput, IntByReference puiOutputLength);
+    int SDF_InternalPrivateKeyOperation_RSA(Pointer hSessionHandle, int uiKeyIndex, byte[] pucDataInput, int uiInputLength, byte[] pucDataOutput, IntByReference puiOutputLength);
+
     int SDF_HashInit(Pointer hSessionHandle, int uiAlgID, ECCrefPublicKey pucPublicKey, byte[] pucID, int uiIDLength);
     int SDF_HashUpdate(Pointer hSessionHandle, byte[] pucData, int uiDataLength);
     int SDF_HashFinal(Pointer hSessionHandle, byte[] pucHash, IntByReference puiHashLength);
@@ -43,6 +52,7 @@ public interface SDFLibrary extends Library {
     int SDF_GetPrivateKeyAccessRight(Pointer hSessionHandle, int uiKeyIndex, byte[] pucPassword, int uiPwdLength);
     int SDF_ReleasePrivateKeyAccessRight(Pointer hSessionHandle, int uiKeyIndex);
     int SDF_ExportSignPublicKey_ECC(Pointer hSessionHandle, int uiKeyIndex, ECCrefPublicKey.ByReference pucPublicKey);
+
     int SDF_GenerateKeyPair_ECC(Pointer hSessionHandle, int uiAlgId, int uiKeyBits, ECCrefPublicKey.ByReference pucPublicKey, ECCrefPrivateKey.ByReference pucPrivateKey);
     int SDF_GenerateRandom(Pointer hSessionHandle, int uiLength, byte[] pucRandom);
     int SDF_ImportKey(Pointer hSessionHandle, byte[] pucKey, int uiKeyLength, Pointer[] phKeyHandle);
