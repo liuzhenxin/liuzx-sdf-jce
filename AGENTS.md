@@ -1,4 +1,4 @@
-# LiuZX SDF JCE Provider 项目文档
+# CODEBUDDY.md This file provides guidance to CodeBuddy when working with code in this repository.
 
 ## 项目概述
 
