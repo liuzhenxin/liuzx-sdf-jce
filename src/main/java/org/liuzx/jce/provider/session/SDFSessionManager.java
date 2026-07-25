@@ -11,22 +11,47 @@ import java.util.concurrent.TimeUnit;
 public class SDFSessionManager {
 
     private static final LiuzxProviderLogger logger = LiuzxProviderLogger.getLogger(SDFSessionManager.class); // Updated class
-    private static final SDFSessionManager INSTANCE = new SDFSessionManager();
     private static final int POOL_SIZE = 10;
     private static final long TIMEOUT_MS = 5000;
 
     private final BlockingQueue<SDFSession> sessionPool;
     private final SDFLibrary sdfLibrary;
+    private volatile boolean initialized;
+    private volatile boolean initFailed;
 
-    private SDFSessionManager() {
-        this.sdfLibrary = SDFLibrary.getInstance();
-        this.sessionPool = new ArrayBlockingQueue<>(POOL_SIZE);
-        initializePool();
-        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
-    }
+    // Double-checked locking: SDFLibrary is loaded first, then pool is initialized.
+    // This avoids the JNI_OnLoad circular callback issue during Native.load().
+    private static volatile SDFSessionManager INSTANCE;
 
     public static SDFSessionManager getInstance() {
+        if (INSTANCE == null) {
+            synchronized (SDFSessionManager.class) {
+                if (INSTANCE == null) {
+                    // Step 1: Ensure native library is loaded (may trigger JNI callbacks)
+                    SDFLibrary lib = SDFLibrary.getInstance();
+                    // Step 2: Now safe to create SessionManager (JNI callbacks won't recurse)
+                    INSTANCE = new SDFSessionManager(lib);
+                }
+            }
+        }
         return INSTANCE;
+    }
+
+    private SDFSessionManager(SDFLibrary sdfLibrary) {
+        this.sdfLibrary = sdfLibrary;
+        this.sessionPool = new ArrayBlockingQueue<>(POOL_SIZE);
+    }
+
+    private synchronized void ensureInitialized() {
+        if (initialized) return;
+        try {
+            initializePool();
+            Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
+            initialized = true;
+        } catch (Exception e) {
+            logger.error("SDF session pool init failed, will retry on next request", e);
+            // Don't set initFailed — allow retry on next borrowSession
+        }
     }
 
     private void initializePool() {
@@ -52,6 +77,7 @@ public class SDFSessionManager {
     }
 
     public SDFSession borrowSession() {
+        ensureInitialized();
         logger.debug("Attempting to borrow a session from the pool...");
         try {
             SDFSession session = sessionPool.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS);

@@ -68,18 +68,44 @@ public class SM4CipherSpi extends CipherSpi {
         this.session = sessionManager.borrowSession();
 
         try {
-            byte[] keyBytes = key.getEncoded();
-            Pointer[] phKeyHandle = new Pointer[1];
-            int rv = SDFLibrary.getInstance().SDF_ImportKey(session.getSessionHandle(), keyBytes, keyBytes.length, phKeyHandle);
-            if (rv != 0) {
-                throw new SDFException("SDF_ImportKey", rv);
-            }
-            this.hKeyHandle = phKeyHandle[0];
+            this.hKeyHandle = importKeyHandle(key);
         } catch (Exception e) {
             releaseSession();
             if (e instanceof SDFException) throw (SDFException) e;
             throw new InvalidKeyException("Failed to initialize SM4 cipher", e);
         }
+    }
+
+    private Pointer importKeyHandle(Key key) throws SDFException, InvalidKeyException {
+        Pointer[] phKeyHandle = new Pointer[1];
+        int rv;
+        if (key instanceof SDFSM4InternalKey) {
+            SDFSM4InternalKey internalKey = (SDFSM4InternalKey) key;
+            byte[] encryptedKey = internalKey.getEncryptedKey();
+            if (isEmptyEncryptedKey(encryptedKey)) {
+                rv = SDFLibrary.getInstance().SDF_ImportKEK(session.getSessionHandle(), internalKey.getKeyIndex(),
+                        internalKey.getKeyLengthBytes(), phKeyHandle);
+            }
+            else {
+                rv = SDFLibrary.getInstance().SDF_ImportKeyWithKEK(session.getSessionHandle(), SGD_SM4_ECB,
+                        internalKey.getKeyIndex(), encryptedKey, internalKey.getKeyLengthBytes(), phKeyHandle);
+            }
+            if (rv != 0) {
+                throw new SDFException(isEmptyEncryptedKey(encryptedKey) ? "SDF_ImportKEK" : "SDF_ImportKeyWithKEK",
+                        rv);
+            }
+            return phKeyHandle[0];
+        }
+
+        byte[] keyBytes = key.getEncoded();
+        if (keyBytes == null || keyBytes.length == 0) {
+            throw new InvalidKeyException("SM4 key encoding is empty. Use SDFSM4InternalKey for internal SDF keys.");
+        }
+        rv = SDFLibrary.getInstance().SDF_ImportKey(session.getSessionHandle(), keyBytes, keyBytes.length, phKeyHandle);
+        if (rv != 0) {
+            throw new SDFException("SDF_ImportKey", rv);
+        }
+        return phKeyHandle[0];
     }
 
     @Override
@@ -156,4 +182,12 @@ public class SM4CipherSpi extends CipherSpi {
     @Override protected int engineDoFinal(byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset) throws ShortBufferException, IllegalBlockSizeException, BadPaddingException { byte[] result = engineDoFinal(input, inputOffset, inputLen); if (output.length - outputOffset < result.length) { throw new ShortBufferException("Output buffer too short"); } System.arraycopy(result, 0, output, outputOffset, result.length); return result.length; }
     private void releaseSession() { if (this.hKeyHandle != null && this.session != null) { SDFLibrary.getInstance().SDF_DestroyKey(this.session.getSessionHandle(), this.hKeyHandle); this.hKeyHandle = null; } if (this.session != null) { this.session.close(); this.session = null; } }
     private int getAlgId() { return "CBC".equals(mode) ? SGD_SM4_CBC : SGD_SM4_ECB; }
+    private static boolean isEmptyEncryptedKey(byte[] encryptedKey) {
+        for (byte b : encryptedKey) {
+            if (b != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

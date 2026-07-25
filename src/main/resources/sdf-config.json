@@ -15,6 +15,16 @@
           "aarch64": "/opt/sansec/macos_aarch64/libsdf.dylib"
         }
       }
+    },
+    "Shudun": {
+      "platforms": {
+        "linux": {
+          "x86_64": "classpath:native/shudun/linux-x86_64/libsdhsmcrypto.so"
+        },
+        "windows": {
+          "x86_64": "classpath:native/shudun/windows-x86_64/sdhsmsdf_x64.dll"
+        }
+      }
     }
   }
 }

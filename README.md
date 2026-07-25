@@ -82,6 +82,20 @@ mvn clean package
 - **`defaultVendor`**: `run.sh` / `run.bat` 默认使用的厂商配置。
 - **`vendors`**: 可以定义多个厂商，每个厂商下根据 `[操作系统]/[CPU架构]` 定义动态库的绝对路径。
 
+运行时可以通过系统属性覆盖默认厂商或动态库路径：
+
+```bash
+# 使用 liuzx-nas 工程当前携带的数盾 SDF 动态库
+java -Dliuzx.sdf.vendor=Shudun \
+  -jar target/liuzx-sdf-jce-1.0-SNAPSHOT.jar
+
+# 直接指定某个动态库路径，优先级高于 vendor 配置
+java -Dliuzx.sdf.library.path=/usr/lib64/libsdhsmcrypto.so \
+  -jar target/liuzx-sdf-jce-1.0-SNAPSHOT.jar
+```
+
+`Shudun` 配置的动态库已放在本工程 `src/main/resources/native/shudun/` 下，并会随 JAR 打包。配置使用 `classpath:` 路径，运行时会自动将 JAR 内动态库解压到临时目录后交给 JNA 加载。生产部署也可以使用 `-Dliuzx.sdf.library.path` 显式指定外部固定路径，优先级高于 vendor 配置。
+
 ### 2. 日志配置 (`liuzx-jce.properties`)
 
 该文件位于 `src/main/resources` 目录下，用于控制内置的日志系统。
@@ -135,3 +149,31 @@ public class Example {
     }
 }
 ```
+
+### 使用密码机内部 SM4 密钥
+
+如需兼容 `liuzx-nas` 中“密钥在密码机内部，只通过 keyIndex 使用”的 SM4/CBC/PKCS5Padding 场景，可以使用 `SDFSM4InternalKey`：
+
+```java
+import org.liuzx.jce.provider.LiuZXProvider;
+import org.liuzx.jce.provider.symmetric.SDFSM4Keys;
+
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import java.security.Security;
+
+Security.addProvider(new LiuZXProvider());
+
+byte[] iv = "axD8q65LvioMjbNG".getBytes("UTF-8");
+SecretKey key = SDFSM4Keys.internalKey(1);
+
+Cipher cipher = Cipher.getInstance("SM4/CBC/PKCS5Padding", "liuzx");
+cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+byte[] encrypted = cipher.doFinal(plainBytes);
+
+cipher.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv));
+byte[] decrypted = cipher.doFinal(encrypted);
+```
+
+`SDFSM4InternalKey` 不返回 `getEncoded()` 明文密钥。Provider 初始化时会通过 SDF 内部 KEK 索引导入会话密钥句柄，然后调用 `SDF_Encrypt` / `SDF_Decrypt` 完成运算。

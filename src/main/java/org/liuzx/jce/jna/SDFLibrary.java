@@ -19,7 +19,40 @@ public interface SDFLibrary extends Library {
     }
 
     class LazyHolder {
-        static final SDFLibrary INSTANCE = Native.load(SDFConfig.getInstance().getDefaultLibraryPath(), SDFLibrary.class);
+        static final SDFLibrary INSTANCE = loadLibrary();
+
+        private static SDFLibrary loadLibrary() {
+            String path = SDFConfig.getInstance().getDefaultLibraryPath();
+            try {
+                return Native.load(path, SDFLibrary.class);
+            } catch (Throwable firstError) {
+                System.err.println("[SDFLibrary] Failed to load native library with path: " + path);
+                System.err.println("[SDFLibrary] Error: " + firstError);
+                if (firstError.getCause() != null) {
+                    System.err.println("[SDFLibrary] Caused by: " + firstError.getCause());
+                }
+                // Try fallback: load by short name "sdcrypto4j" (JNA adds lib prefix and .so suffix)
+                try {
+                    System.err.println("[SDFLibrary] Trying fallback: Native.load(\"sdcrypto4j\", ...)");
+                    SDFLibrary lib = Native.load("sdcrypto4j", SDFLibrary.class);
+                    System.err.println("[SDFLibrary] Fallback succeeded via short name");
+                    return lib;
+                } catch (Throwable fallbackError) {
+                    System.err.println("[SDFLibrary] Fallback also failed: " + fallbackError);
+                    if (fallbackError.getCause() != null) {
+                        System.err.println("[SDFLibrary] Fallback caused by: " + fallbackError.getCause());
+                    }
+                    // Re-throw as a clear error
+                    throw new RuntimeException(
+                            "Failed to load SDF native library. Path='" + path
+                                    + "', java.library.path='" + System.getProperty("java.library.path")
+                                    + "', jna.library.path='" + System.getProperty("jna.library.path")
+                                    + "'. First error: " + firstError
+                                    + ". Fallback error: " + fallbackError,
+                            firstError);
+                }
+            }
+        }
     }
 
     // --- Asymmetric ECC Operations ---
@@ -56,6 +89,8 @@ public interface SDFLibrary extends Library {
     int SDF_GenerateKeyPair_ECC(Pointer hSessionHandle, int uiAlgId, int uiKeyBits, ECCrefPublicKey.ByReference pucPublicKey, ECCrefPrivateKey.ByReference pucPrivateKey);
     int SDF_GenerateRandom(Pointer hSessionHandle, int uiLength, byte[] pucRandom);
     int SDF_ImportKey(Pointer hSessionHandle, byte[] pucKey, int uiKeyLength, Pointer[] phKeyHandle);
+    int SDF_ImportKEK(Pointer hSessionHandle, int uiKEKIndex, int uiKeyLength, Pointer[] phKeyHandle);
+    int SDF_ImportKeyWithKEK(Pointer hSessionHandle, int uiAlgID, int uiKEKIndex, byte[] pucKey, int uiKeyLength, Pointer[] phKeyHandle);
     int SDF_DestroyKey(Pointer hSessionHandle, Pointer hKeyHandle);
     int SDF_Encrypt(Pointer hSessionHandle, Pointer hKeyHandle, int uiAlgID, byte[] pucIV, byte[] pucData, int uiDataLength, byte[] pucEncData, IntByReference puiEncDataLength);
     int SDF_Decrypt(Pointer hSessionHandle, Pointer hKeyHandle, int uiAlgID, byte[] pucIV, byte[] pucEncData, int uiEncDataLength, byte[] pucData, IntByReference puiDataLength);
