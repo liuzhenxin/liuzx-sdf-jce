@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 # --- Configuration ---
-set "MAIN_JAR=target\liuzx-sdf-jce-1.1.0-SNAPSHOT.jar"
+set "MAIN_JAR=target\liuzx-sdf-jce-1.1.1-SNAPSHOT.jar"
 set "LIB_DIR=target\lib"
 set "MAIN_CLASS=org.liuzx.jce.demo.Main"
 

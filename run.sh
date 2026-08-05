@@ -4,7 +4,7 @@ set -e
 cd "$(dirname "$0")"
 
 # --- Configuration ---
-MAIN_JAR="target/liuzx-sdf-jce-1.1.0-SNAPSHOT.jar"
+MAIN_JAR="target/liuzx-sdf-jce-1.1.1-SNAPSHOT.jar"
 LIB_DIR="target/lib"
 MAIN_CLASS="org.liuzx.jce.demo.Main"
 
