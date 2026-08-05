@@ -81,11 +81,11 @@
     <h2>快速开始</h2>
     <pre>Security.addProvider(new LiuZXProvider());
 
-KeyPairGenerator kpg = KeyPairGenerator.getInstance("SM2", "liuzx");
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("SM2", "LiuZX");
 kpg.initialize(256);
 KeyPair keyPair = kpg.generateKeyPair();
 
-Signature signer = Signature.getInstance("SM3withSM2", "liuzx");
+Signature signer = Signature.getInstance("SM3withSM2", "LiuZX");
 signer.initSign(keyPair.getPrivate());
 signer.update("Hello, World!".getBytes());
 byte[] signature = signer.sign();</pre>
@@ -102,7 +102,7 @@ mvn install              # 安装到本地 Maven 仓库</pre>
     <h2>示例代码</h2>
     <pre>// 使用密码机内部 SM4 密钥
 SecretKey key = SDFSM4Keys.internalKey(1);
-Cipher cipher = Cipher.getInstance("SM4/CBC/PKCS5Padding", "liuzx");
+Cipher cipher = Cipher.getInstance("SM4/CBC/PKCS5Padding", "LiuZX");
 cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
 byte[] encrypted = cipher.doFinal(plainBytes);</pre>
   </div>

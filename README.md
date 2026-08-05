@@ -133,16 +133,18 @@ import java.security.KeyPairGenerator;
 public class Example {
     public static void main(String[] args) {
         try {
-            // 1. 动态注册Provider
+            // 1. 动态注册Provider（主名 "LiuZX"）
             Security.addProvider(new LiuZXProvider());
+            // 如需兼容旧名称 "liuzx"，再注册一个兼容实例：
+            // Security.addProvider(new LegacyLiuZXProvider());
 
             // 2. 通过指定Provider名称来获取服务
-            KeyPairGenerator kpg = KeyPairGenerator.getInstance("SM2", "liuzx");
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance("SM2", "LiuZX");
             kpg.initialize(256);
             KeyPair keyPair = kpg.generateKeyPair();
 
             // 3. 执行签名
-            Signature signer = Signature.getInstance("SM3withSM2", "liuzx");
+            Signature signer = Signature.getInstance("SM3withSM2", "LiuZX");
             signer.initSign(keyPair.getPrivate());
             signer.update("Hello, World!".getBytes());
             byte[] signature = signer.sign();
@@ -174,7 +176,7 @@ Security.addProvider(new LiuZXProvider());
 byte[] iv = "axD8q65LvioMjbNG".getBytes("UTF-8");
 SecretKey key = SDFSM4Keys.internalKey(1);
 
-Cipher cipher = Cipher.getInstance("SM4/CBC/PKCS5Padding", "liuzx");
+Cipher cipher = Cipher.getInstance("SM4/CBC/PKCS5Padding", "LiuZX");
 cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
 byte[] encrypted = cipher.doFinal(plainBytes);
 
@@ -197,7 +199,7 @@ import java.security.*;
 Security.addProvider(new LiuZXProvider());
 
 // 1. 加载硬件中的 RSA 内部密钥（例如索引为 1）
-KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "liuzx");
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "LiuZX");
 kpg.initialize(new RSAInternalKeyGenParameterSpec(1));
 KeyPair keyPairRef = kpg.generateKeyPair();
 
@@ -206,13 +208,13 @@ RSAPublicKey rsaPubKey = (RSAPublicKey) keyPairRef.getPublic();
 PrivateKey privateKey = new SDFRSAPrivateKey(1, password, rsaPubKey);
 
 // 3. 使用硬件密钥签名
-Signature signer = Signature.getInstance("SHA256withRSA", "liuzx");
+Signature signer = Signature.getInstance("SHA256withRSA", "LiuZX");
 signer.initSign(privateKey);
 signer.update("Hello, RSA!".getBytes());
 byte[] signature = signer.sign();
 
 // 4. 使用标准 Java 公钥验签
-Signature verifier = Signature.getInstance("SHA256withRSA", "liuzx");
+Signature verifier = Signature.getInstance("SHA256withRSA", "LiuZX");
 verifier.initVerify(rsaPubKey);
 verifier.update("Hello, RSA!".getBytes());
 boolean ok = verifier.verify(signature);
@@ -226,12 +228,12 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 
 // 1. 生成 RSA 外部密钥对
-KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "liuzx");
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "LiuZX");
 kpg.initialize(2048);
 KeyPair keyPair = kpg.generateKeyPair();
 
 // 2. 公钥加密
-Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding", "liuzx");
+Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding", "LiuZX");
 cipher.init(Cipher.ENCRYPT_MODE, keyPair.getPublic());
 byte[] encrypted = cipher.doFinal("Hello, RSA!".getBytes());
 

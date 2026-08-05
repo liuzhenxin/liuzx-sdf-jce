@@ -4,11 +4,21 @@ import java.security.Provider;
 
 public class LiuZXProvider extends Provider {
     private static final String INFO = "LiuZX JCE provider";
-    public static final String PROVIDER_NAME = "liuzx";
+    /** 主 provider 名称（JCE 名称查找区分大小写，须精确拼写）。 */
+    public static final String PROVIDER_NAME = "LiuZX";
+    /** 兼容旧名称 "liuzx"，通过 {@link LegacyLiuZXProvider} 注册。 */
+    public static final String LEGACY_PROVIDER_NAME = "liuzx";
 
     public LiuZXProvider() {
-        super(PROVIDER_NAME, 1.0, INFO);
+        this(PROVIDER_NAME);
+    }
 
+    protected LiuZXProvider(String name) {
+        super(name, 1.0, INFO);
+        registerServices();
+    }
+
+    private void registerServices() {
         // --- SecureRandom ---
         put("SecureRandom.SDF", "org.liuzx.jce.provider.random.SDFSecureRandomSpi");
 

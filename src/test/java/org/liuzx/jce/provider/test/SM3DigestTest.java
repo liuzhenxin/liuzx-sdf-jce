@@ -13,7 +13,7 @@ public class SM3DigestTest {
     @Test
     public void testSM3() throws Exception {
         Security.addProvider(new LiuZXProvider());
-        MessageDigest md = MessageDigest.getInstance("SM3", "liuzx");
+        MessageDigest md = MessageDigest.getInstance("SM3", LiuZXProvider.PROVIDER_NAME);
         md.update("hello world".getBytes());
         byte[] digest = md.digest();
         // This is the expected SM3 hash of "hello world"
