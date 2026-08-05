@@ -5,6 +5,7 @@ import org.liuzx.jce.jna.SDFLibrary;
 import org.liuzx.jce.jna.structure.ECCSignature;
 import org.liuzx.jce.jna.structure.ECCrefPublicKey;
 import org.liuzx.jce.provider.exception.SDFException;
+import org.liuzx.jce.provider.log.LiuzxProviderLogger;
 import org.liuzx.jce.provider.session.SDFSession;
 import org.liuzx.jce.provider.session.SDFSessionManager;
 import org.liuzx.jce.provider.util.ASN1Util;
@@ -27,6 +28,7 @@ public class SM2SignatureSpi extends SignatureSpi {
 
     private final SDFSessionManager sessionManager;
     private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    private static final LiuzxProviderLogger logger = LiuzxProviderLogger.getLogger(SM2SignatureSpi.class);
 
     private SM2PrivateKey sm2PrivateKey;
     private SM2PublicKey sm2PublicKey;
@@ -77,8 +79,7 @@ public class SM2SignatureSpi extends SignatureSpi {
             if (sm2PrivateKey.isInternalKey()) {
                 char[] password = sm2PrivateKey.getPassword();
                 if (password != null && password.length > 0) {
-                    byte[] pwdBytes = new String(password).getBytes(StandardCharsets.UTF_8);
-                    rv = SDFLibrary.getInstance().SDF_GetPrivateKeyAccessRight(session.getSessionHandle(), sm2PrivateKey.getKeyIndex(), pwdBytes, pwdBytes.length);
+                    rv = sessionManager.getPrivateKeyAccessRight(session, sm2PrivateKey.getKeyIndex(), password);
                     if (rv != 0) {
                         throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
                     }
@@ -130,11 +131,12 @@ public class SM2SignatureSpi extends SignatureSpi {
                 rv = SDFLibrary.getInstance().SDF_ExternalVerify_ECC(session.getSessionHandle(), SGD_SM2_1, sm2PublicKey.getEccPublicKey(), sm3Digest, sm3Digest.length, signature);
             }
             return rv == 0;
+        } catch (SDFException e) {
+            logger.error("SDF error during SM2 verification", e);
+            throw new SignatureException("SDF error during SM2 verification", e);
         } catch (Exception e) {
-            if (e instanceof SDFException) {
-                throw (SDFException) e;
-            }
-            return false;
+            logger.error("Unexpected error during SM2 verification", e);
+            throw new SignatureException("Unexpected error during SM2 verification", e);
         } finally {
             reset();
         }

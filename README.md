@@ -9,11 +9,13 @@
 ## ✨ 特性
 
 - **符合JCE标准**: 可通过 `Security.addProvider()` 动态注册，并通过标准JCE API（`Signature`, `Cipher`, `KeyPairGenerator`等）进行调用。
-- **国密算法支持**:
+- **国密算法 + RSA 全面支持**:
   - **SM2**: 内部/外部密钥对的签名、验签、加密、解密。
   - **SM3**: 消息摘要计算。
-  - **SM4**: ECB和CBC模式的加密与解密。
-- **硬件密钥支持**: 支持使用存储在密码设备内部的密钥对进行密码运算，私钥永不离开硬件。
+  - **SM4**: ECB和CBC模式的加密与解密，支持硬件内部密钥（通过 `SDFSM4Keys.internalKey(index)` 使用）。
+  - **RSA**: 内部/外部密钥对的签名（SHA1/SHA256/SHA512/MD5）、加密、解密。
+- **硬件密钥支持**: 支持使用存储在密码设备内部的 SM2/RSA/SM4 密钥进行密码运算，私钥永不离开硬件。
+- **数盾 (Shudun) 厂商支持**: 内置数盾 SDF 动态库（Linux x86_64 / Windows x86_64），通过 `classpath:` 机制随 JAR 打包分发，无需手动安装动态库即可使用。
 - **跨平台**: 通过配置文件支持在不同操作系统和CPU架构（Linux/Windows/macOS, x86_64/aarch64）下加载对应的SDF动态库。
 - **可配置的日志系统**: 内置一个无第三方依赖的日志系统，支持通过配置文件开关、设置级别和输出路径。
 - **国际化**: 演示程序支持中英文切换。
@@ -177,3 +179,59 @@ byte[] decrypted = cipher.doFinal(encrypted);
 ```
 
 `SDFSM4InternalKey` 不返回 `getEncoded()` 明文密钥。Provider 初始化时会通过 SDF 内部 KEK 索引导入会话密钥句柄，然后调用 `SDF_Encrypt` / `SDF_Decrypt` 完成运算。
+
+### 使用 RSA 内部密钥签名
+
+通过 `RSAInternalKeyGenParameterSpec` 加载硬件中的 RSA 内部密钥，并使用 `SDFRSAPrivateKey` 进行签名运算：
+
+```java
+import org.liuzx.jce.provider.LiuZXProvider;
+import org.liuzx.jce.provider.asymmetric.rsa.RSAInternalKeyGenParameterSpec;
+import org.liuzx.jce.provider.asymmetric.rsa.SDFRSAPrivateKey;
+import java.security.*;
+
+Security.addProvider(new LiuZXProvider());
+
+// 1. 加载硬件中的 RSA 内部密钥（例如索引为 1）
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "liuzx");
+kpg.initialize(new RSAInternalKeyGenParameterSpec(1));
+KeyPair keyPairRef = kpg.generateKeyPair();
+
+// 2. 构建带密码的私钥对象
+RSAPublicKey rsaPubKey = (RSAPublicKey) keyPairRef.getPublic();
+PrivateKey privateKey = new SDFRSAPrivateKey(1, password, rsaPubKey);
+
+// 3. 使用硬件密钥签名
+Signature signer = Signature.getInstance("SHA256withRSA", "liuzx");
+signer.initSign(privateKey);
+signer.update("Hello, RSA!".getBytes());
+byte[] signature = signer.sign();
+
+// 4. 使用标准 Java 公钥验签
+Signature verifier = Signature.getInstance("SHA256withRSA", "liuzx");
+verifier.initVerify(rsaPubKey);
+verifier.update("Hello, RSA!".getBytes());
+boolean ok = verifier.verify(signature);
+```
+
+### 使用 RSA 外部密钥加解密
+
+```java
+import javax.crypto.Cipher;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+
+// 1. 生成 RSA 外部密钥对
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "liuzx");
+kpg.initialize(2048);
+KeyPair keyPair = kpg.generateKeyPair();
+
+// 2. 公钥加密
+Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding", "liuzx");
+cipher.init(Cipher.ENCRYPT_MODE, keyPair.getPublic());
+byte[] encrypted = cipher.doFinal("Hello, RSA!".getBytes());
+
+// 3. 私钥解密
+cipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+byte[] decrypted = cipher.doFinal(encrypted);
+```

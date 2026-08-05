@@ -25,6 +25,9 @@ public class ECCCipher extends Structure {
     public static class ByReference extends ECCCipher implements Structure.ByReference {
     }
 
+    public static class ByValue extends ECCCipher implements Structure.ByValue {
+    }
+
     @Override
     protected List<String> getFieldOrder() {
         // 顺序必须与SDF库定义的一致

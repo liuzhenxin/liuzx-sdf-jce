@@ -265,4 +265,63 @@ public final class ASN1Util {
         if (value < 0x1000000) return new byte[]{(byte) (value >> 16), (byte) (value >> 8), (byte) value};
         return new byte[]{(byte) (value >> 24), (byte) (value >> 16), (byte) (value >> 8), (byte) value};
     }
+
+    // --- Generic DER signature encoding for ECDSA/EdDSA/DSA ---
+
+    /**
+     * Encode raw (r, s) byte arrays as ASN.1 DER SEQUENCE { INTEGER r, INTEGER s }.
+     */
+    public static byte[] toDERSignature(byte[] rawR, byte[] rawS) throws IOException {
+        byte[] r = trimLeadingZeros(rawR);
+        byte[] s = trimLeadingZeros(rawS);
+        ByteArrayOutputStream der = new ByteArrayOutputStream();
+        writeTL(der, ASN1_SEQUENCE,
+                calculateTLVLength(r, true) + calculateTLVLength(s, true));
+        writeTLV(der, ASN1_INTEGER, r, true);
+        writeTLV(der, ASN1_INTEGER, s, true);
+        return der.toByteArray();
+    }
+
+    /**
+     * Decode an ASN.1 DER SEQUENCE { INTEGER r, INTEGER s } back to raw bytes.
+     * Returns an array where [0..half-1] = r and [half..] = s, or null if decoding fails.
+     */
+    public static byte[] fromDERSignature(byte[] derSig, int rLen, int sLen) {
+        try {
+            int offset = 0;
+            if (derSig[offset++] != ASN1_SEQUENCE) return null;
+            int seqLen = readLength(derSig, offset);
+            offset += calculateLengthBytes(seqLen);
+            byte[] r = readTLV(derSig, offset, ASN1_INTEGER);
+            byte[] s = readTLV(derSig, offset + calculateTLVLength(r, true), ASN1_INTEGER);
+
+            // DER INTEGER 对最高位置位的值会带前导 0x00 符号字节（长度 = 定长值 + 1），
+            // 剥离后即可放入 SDF 定长缓冲区；否则 EdDSA 等定长小的算法约 50% 的合法签名会被误拒。
+            byte[] rv = stripSignByte(r);
+            byte[] sv = stripSignByte(s);
+            if (rv.length > rLen || sv.length > sLen) {
+                return null; // DER value exceeds fixed-size SDF buffer
+            }
+
+            byte[] result = new byte[rLen + sLen];
+            System.arraycopy(rv, 0, result, rLen - rv.length, rv.length);
+            System.arraycopy(sv, 0, result, rLen + sLen - sv.length, sv.length);
+            return result;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Strip a single leading 0x00 sign byte from a DER INTEGER value if present.
+     * DER INTEGERs are minimal, so a leading 0x00 always denotes the sign byte.
+     */
+    private static byte[] stripSignByte(byte[] value) {
+        if (value.length > 1 && value[0] == 0) {
+            byte[] stripped = new byte[value.length - 1];
+            System.arraycopy(value, 1, stripped, 0, stripped.length);
+            return stripped;
+        }
+        return value;
+    }
 }

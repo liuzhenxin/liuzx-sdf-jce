@@ -21,6 +21,9 @@ public class ECCrefPublicKey extends Structure {
     public static class ByReference extends ECCrefPublicKey implements Structure.ByReference {
     }
 
+    public static class ByValue extends ECCrefPublicKey implements Structure.ByValue {
+    }
+
     @Override
     protected List<String> getFieldOrder() {
         return Arrays.asList("bits", "x", "y");

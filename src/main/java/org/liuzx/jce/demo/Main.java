@@ -8,6 +8,7 @@ import org.liuzx.jce.provider.asymmetric.sm2.SM2InternalKeyGenParameterSpec;
 import org.liuzx.jce.provider.asymmetric.sm2.SM2PrivateKey;
 import org.liuzx.jce.provider.asymmetric.sm2.SM2PublicKey;
 import org.liuzx.jce.provider.log.LiuzxProviderLogger;
+import org.liuzx.jce.provider.util.HexUtil;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -201,7 +202,7 @@ public class Main {
 
         cipher.init(Cipher.ENCRYPT_MODE, secretKey);
         byte[] ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-        logger.info(I18n.get("msg.ciphertext.hex") + ": {}", toHexString(ciphertext));
+        logger.info(I18n.get("msg.ciphertext.hex") + ": {}", HexUtil.toHexString(ciphertext));
 
         cipher.init(Cipher.DECRYPT_MODE, secretKey);
         byte[] decryptedBytes = cipher.doFinal(ciphertext);
@@ -218,7 +219,7 @@ public class Main {
         byte[] ivBytes = new byte[16];
         SecureRandom.getInstance("SDF", PROVIDER_NAME).nextBytes(ivBytes);
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
-        logger.info(I18n.get("msg.iv.generated") + ": {}", toHexString(ivBytes));
+        logger.info(I18n.get("msg.iv.generated") + ": {}", HexUtil.toHexString(ivBytes));
 
         Cipher cipher = Cipher.getInstance("SM4/CBC/PKCS5Padding", PROVIDER_NAME);
         String plaintext = "This is a slightly longer test for SM4 in CBC mode.";
@@ -226,7 +227,7 @@ public class Main {
 
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
         byte[] ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-        logger.info(I18n.get("msg.ciphertext.hex") + ": {}", toHexString(ciphertext));
+        logger.info(I18n.get("msg.ciphertext.hex") + ": {}", HexUtil.toHexString(ciphertext));
 
         cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec);
         byte[] decryptedBytes = cipher.doFinal(ciphertext);
@@ -246,7 +247,7 @@ public class Main {
         byte[] digest = md.digest(text.getBytes(StandardCharsets.UTF_8));
 
         logger.info(I18n.get("msg.input.text") + ": {}", text);
-        logger.info(I18n.get("msg.hash.hex") + ": {}", toHexString(digest));
+        logger.info(I18n.get("msg.hash.hex") + ": {}", HexUtil.toHexString(digest));
     }
 
     // --- Stress Tests ---
@@ -301,8 +302,8 @@ public class Main {
         // For RSA, encoded might be null if not implemented, but we implemented it.
         // For SM2, we also implemented it.
         try {
-            logger.info("Public Key (Hex): {}", toHexString(keyPair.getPublic().getEncoded()));
-            logger.info("Private Key (Hex): {}", toHexString(keyPair.getPrivate().getEncoded()));
+            logger.info("Public Key (Hex): {}", HexUtil.toHexString(keyPair.getPublic().getEncoded()));
+            logger.info("Private Key (Hex): {}", HexUtil.toHexString(keyPair.getPrivate().getEncoded()));
         } catch (Exception e) {
             logger.warn("Could not print encoded keys (maybe not supported for this key type): " + e.getMessage());
         }
@@ -313,7 +314,7 @@ public class Main {
         KeyGenerator kg = KeyGenerator.getInstance("SM4", PROVIDER_NAME);
         kg.init(128);
         SecretKey secretKey = kg.generateKey();
-        logger.info(I18n.get("msg.sm4.key.generated") + ": {}", toHexString(secretKey.getEncoded()));
+        logger.info(I18n.get("msg.sm4.key.generated") + ": {}", HexUtil.toHexString(secretKey.getEncoded()));
         return secretKey;
     }
 
@@ -340,7 +341,7 @@ public class Main {
         signer.initSign(privateKey);
         signer.update(data);
         byte[] signature = signer.sign();
-        logger.info(I18n.get("msg.signature.hex") + ": {}", toHexString(signature));
+        logger.info(I18n.get("msg.signature.hex") + ": {}", HexUtil.toHexString(signature));
 
         Signature verifier = Signature.getInstance(algorithm, PROVIDER_NAME);
         verifier.initVerify(publicKey);
@@ -359,7 +360,7 @@ public class Main {
         Cipher cipher = Cipher.getInstance(algorithm, PROVIDER_NAME);
         cipher.init(Cipher.ENCRYPT_MODE, encryptKey);
         byte[] ciphertext = cipher.doFinal(plaintext);
-        logger.info(I18n.get("msg.ciphertext.hex") + ": {}", toHexString(ciphertext));
+        logger.info(I18n.get("msg.ciphertext.hex") + ": {}", HexUtil.toHexString(ciphertext));
 
         cipher.init(Cipher.DECRYPT_MODE, decryptKey);
         byte[] decryptedBytes = cipher.doFinal(ciphertext);
@@ -372,8 +373,8 @@ public class Main {
         // If strict match fails, try to find the plaintext inside (manual unpadding for test)
         if (!testData.equals(decryptedText)) {
              // Try to find the plaintext pattern
-             String rawHex = toHexString(decryptedBytes);
-             String plainHex = toHexString(plaintext);
+             String rawHex = HexUtil.toHexString(decryptedBytes);
+             String plainHex = HexUtil.toHexString(plaintext);
              if (rawHex.endsWith(plainHex)) {
                  logger.info("Decrypted data contains plaintext (padding likely present).");
                  // Manually extract for display
@@ -390,12 +391,4 @@ public class Main {
         else logger.error("{}: {}", I18n.get("msg.failure"), I18n.get("msg.decrypt.mismatch"));
     }
 
-    private static String toHexString(byte[] bytes) {
-        if (bytes == null) return "null";
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02X", b));
-        }
-        return sb.toString();
-    }
 }

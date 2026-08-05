@@ -4,8 +4,8 @@ import com.sun.jna.Pointer;
 
 public class SDFSession implements AutoCloseable {
 
-    private final Pointer hDeviceHandle;
-    private final Pointer hSessionHandle;
+    private volatile Pointer hDeviceHandle;
+    private volatile Pointer hSessionHandle;
     private final SDFSessionManager manager;
 
     SDFSession(Pointer hDeviceHandle, Pointer hSessionHandle, SDFSessionManager manager) {
@@ -24,6 +24,7 @@ public class SDFSession implements AutoCloseable {
 
     /**
      * This does not close the actual session, but returns it to the pool.
+     * The returned session remains valid for reuse.
      */
     @Override
     public void close() {
@@ -31,15 +32,28 @@ public class SDFSession implements AutoCloseable {
     }
 
     /**
+     * True once {@link #destroy()} has run (handles cleared).
+     */
+    boolean isDestroyed() {
+        return hSessionHandle == null;
+    }
+
+    /**
      * Actually closes the underlying SDF session and device handles.
+     * Idempotent: safe to call multiple times.
      * To be called only by the manager during shutdown.
      */
     void destroy() {
-        if (hSessionHandle != null) {
-            manager.getSdfLibrary().SDF_CloseSession(hSessionHandle);
+        Pointer device = hDeviceHandle;
+        Pointer session = hSessionHandle;
+        // Set fields to null first so a concurrent destroy sees them as gone
+        hSessionHandle = null;
+        hDeviceHandle = null;
+        if (session != null) {
+            manager.getSdfLibrary().SDF_CloseSession(session);
         }
-        if (hDeviceHandle != null) {
-            manager.getSdfLibrary().SDF_CloseDevice(hDeviceHandle);
+        if (device != null) {
+            manager.getSdfLibrary().SDF_CloseDevice(device);
         }
     }
 }

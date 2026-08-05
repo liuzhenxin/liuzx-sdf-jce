@@ -16,7 +16,6 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.ShortBufferException;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -28,17 +27,26 @@ import java.security.interfaces.RSAPublicKey;
 
 /**
  * RSA CipherSpi implementation using SDF device.
- * Supports:
- * - Encryption with internal or external RSA public key.
- * - Decryption with internal or external SDF RSA private key.
+ * <p>
+ * Encryption: uses the RSA public key. For external keys, pass an {@link RSAPublicKey}.
+ * For internal (hardware) keys, an internal {@link SDFRSAPrivateKey} reference is accepted
+ * because it carries the hardware key index needed for the SDF public-key operation — the
+ * private-key material itself is never accessed during encryption.
+ * <p>
+ * Decryption: always requires an {@link SDFRSAPrivateKey} (internal or external).
  */
 public class RSACipherSpi extends CipherSpi {
 
     private final SDFSessionManager sessionManager;
     private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-    private int opmode;
 
-    private Key rsaKey;
+    private int opmode;
+    private RSAPublicKey publicKey;          // for output-size estimation and external encrypt
+    private SDFRSAPrivateKey privateKey;     // for external decrypt
+    private int internalKeyIndex;            // 0 = external key
+    private char[] internalPassword;         // for internal-key access right
+    protected String padding = "PKCS1Padding"; // "PKCS1Padding" or "NoPadding"; 子类变体在构造时固定
+    private SecureRandom secureRandom = new SecureRandom();
 
     public RSACipherSpi() {
         this.sessionManager = SDFSessionManager.getInstance();
@@ -46,25 +54,50 @@ public class RSACipherSpi extends CipherSpi {
 
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException {
-        this.opmode = opmode;
+        reset();
+
         if (opmode == Cipher.ENCRYPT_MODE) {
-            if (!(key instanceof RSAPublicKey) && !(key instanceof SDFRSAPrivateKey)) {
-                throw new InvalidKeyException("Encryption requires an RSAPublicKey or an internal SDFRSAPrivateKey.");
+            if (key instanceof RSAPublicKey) {
+                this.publicKey = (RSAPublicKey) key;
+            } else if (key instanceof SDFRSAPrivateKey && ((SDFRSAPrivateKey) key).isInternalKey()) {
+                // Internal key ref: use its key-index for the public-key op on the device.
+                SDFRSAPrivateKey sdfKey = (SDFRSAPrivateKey) key;
+                this.publicKey = sdfKey.getPublicKey();
+                this.internalKeyIndex = sdfKey.getKeyIndex();
+                this.internalPassword = sdfKey.getPassword();
+            } else {
+                throw new InvalidKeyException(
+                        "RSA encryption requires an RSAPublicKey or an internal SDFRSAPrivateKey reference.");
             }
         } else if (opmode == Cipher.DECRYPT_MODE) {
             if (!(key instanceof SDFRSAPrivateKey)) {
-                throw new InvalidKeyException("Decryption requires an SDFRSAPrivateKey.");
+                throw new InvalidKeyException("RSA decryption requires an SDFRSAPrivateKey.");
+            }
+            SDFRSAPrivateKey sdfKey = (SDFRSAPrivateKey) key;
+            this.publicKey = sdfKey.getPublicKey();
+            if (sdfKey.isInternalKey()) {
+                this.internalKeyIndex = sdfKey.getKeyIndex();
+                this.internalPassword = sdfKey.getPassword();
+            } else {
+                this.privateKey = sdfKey;
             }
         } else {
             throw new InvalidKeyException("Unsupported opmode: " + opmode);
         }
-        this.rsaKey = key;
-        buffer.reset();
+
+        this.opmode = opmode;
+        if (random != null) {
+            this.secureRandom = random;
+        }
     }
 
     @Override
-    protected byte[] engineDoFinal(byte[] input, int inputOffset, int inputLen) throws IllegalBlockSizeException, BadPaddingException {
-        engineUpdate(input, inputOffset, inputLen);
+    protected byte[] engineDoFinal(byte[] input, int inputOffset, int inputLen)
+            throws IllegalBlockSizeException, BadPaddingException {
+        // JCE 的无参 doFinal() 会以 (null, 0, 0) 调用；跳过 update 避免 NPE
+        if (input != null) {
+            engineUpdate(input, inputOffset, inputLen);
+        }
         byte[] data = buffer.toByteArray();
         buffer.reset();
 
@@ -83,25 +116,24 @@ public class RSACipherSpi extends CipherSpi {
 
     private byte[] doEncrypt(SDFSession session, byte[] data) throws Exception {
         SDFLibrary sdf = sessionManager.getSdfLibrary();
-        byte[] output = new byte[4096 / 8]; // Max key size
+        int keySizeBytes = publicKey.getModulus().bitLength() / 8;
+        if (!"NoPadding".equals(padding)) {
+            data = pkcs1Pad(data, keySizeBytes);
+        }
+        byte[] output = new byte[keySizeBytes];
         IntByReference outputLen = new IntByReference(output.length);
         int rv;
 
-        if (rsaKey instanceof SDFRSAPrivateKey && ((SDFRSAPrivateKey) rsaKey).isInternalKey()) {
-            // Use internal public key for encryption
-            SDFRSAPrivateKey internalKey = (SDFRSAPrivateKey) rsaKey;
-            rv = sdf.SDF_InternalPublicKeyOperation_RSA(session.getSessionHandle(), internalKey.getKeyIndex(), data, data.length, output, outputLen);
+        if (internalKeyIndex != 0) {
+            // Encryption using internal key index (public-key operation on-device)
+            rv = sdf.SDF_InternalPublicKeyOperation_RSA(session.getSessionHandle(),
+                    internalKeyIndex, data, data.length, output, outputLen);
             if (rv != 0) throw new SDFException("SDF_InternalPublicKeyOperation_RSA", rv);
         } else {
-            // Use external public key for encryption
-            RSAPublicKey publicKey;
-            if (rsaKey instanceof SDFRSAPrivateKey) {
-                publicKey = ((SDFRSAPrivateKey) rsaKey).getPublicKey();
-            } else {
-                publicKey = (RSAPublicKey) rsaKey;
-            }
-            RSArefPublicKey.ByReference refPublicKey = convertToSdfPublicKey(publicKey);
-            rv = sdf.SDF_ExternalPublicKeyOperation_RSA(session.getSessionHandle(), refPublicKey, data, data.length, output, outputLen);
+            // Encryption using external public key
+            RSArefPublicKey.ByReference refPubKey = convertToSdfPublicKey(publicKey);
+            rv = sdf.SDF_ExternalPublicKeyOperation_RSA(session.getSessionHandle(),
+                    refPubKey, data, data.length, output, outputLen);
             if (rv != 0) throw new SDFException("SDF_ExternalPublicKeyOperation_RSA", rv);
         }
 
@@ -112,85 +144,217 @@ public class RSACipherSpi extends CipherSpi {
 
     private byte[] doDecrypt(SDFSession session, byte[] data) throws Exception {
         SDFLibrary sdf = sessionManager.getSdfLibrary();
-        SDFRSAPrivateKey privateKey = (SDFRSAPrivateKey) this.rsaKey;
-        byte[] output = new byte[privateKey.getModulus().bitLength() / 8];
+        int keySizeBytes = publicKey.getModulus().bitLength() / 8;
+        byte[] output = new byte[keySizeBytes];
         IntByReference outputLen = new IntByReference(output.length);
         int rv;
 
-        if (privateKey.isInternalKey()) {
-            // Decrypt with internal private key
-            char[] password = privateKey.getPassword();
-            if (password != null && password.length > 0) {
-                byte[] pwdBytes = new String(password).getBytes(StandardCharsets.UTF_8);
-                rv = sdf.SDF_GetPrivateKeyAccessRight(session.getSessionHandle(), privateKey.getKeyIndex(), pwdBytes, pwdBytes.length);
+        if (internalKeyIndex != 0) {
+            // Decrypt with internal private key (on-device)
+            if (internalPassword != null && internalPassword.length > 0) {
+                rv = sessionManager.getPrivateKeyAccessRight(session, internalKeyIndex, internalPassword);
                 if (rv != 0) throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
             }
             try {
-                rv = sdf.SDF_InternalPrivateKeyOperation_RSA(session.getSessionHandle(), privateKey.getKeyIndex(), data, data.length, output, outputLen);
+                rv = sdf.SDF_InternalPrivateKeyOperation_RSA(session.getSessionHandle(),
+                        internalKeyIndex, data, data.length, output, outputLen);
                 if (rv != 0) throw new SDFException("SDF_InternalPrivateKeyOperation_RSA", rv);
             } finally {
-                if (password != null && password.length > 0) {
-                    sdf.SDF_ReleasePrivateKeyAccessRight(session.getSessionHandle(), privateKey.getKeyIndex());
+                if (internalPassword != null && internalPassword.length > 0) {
+                    sdf.SDF_ReleasePrivateKeyAccessRight(session.getSessionHandle(), internalKeyIndex);
                 }
             }
         } else {
             // Decrypt with external private key
-            RSArefPrivateKey.ByReference refPrivateKey = convertToSdfPrivateKey(privateKey);
-            rv = sdf.SDF_ExternalPrivateKeyOperation_RSA(session.getSessionHandle(), refPrivateKey, data, data.length, output, outputLen);
+            RSArefPrivateKey.ByReference refPrivKey = convertToSdfPrivateKey(privateKey);
+            rv = sdf.SDF_ExternalPrivateKeyOperation_RSA(session.getSessionHandle(),
+                    refPrivKey, data, data.length, output, outputLen);
             if (rv != 0) throw new SDFException("SDF_ExternalPrivateKeyOperation_RSA", rv);
         }
 
         byte[] result = new byte[outputLen.getValue()];
         System.arraycopy(output, 0, result, 0, result.length);
+        if (!"NoPadding".equals(padding)) {
+            result = pkcs1Unpad(result);
+        }
         return result;
     }
 
-    private RSArefPublicKey.ByReference convertToSdfPublicKey(RSAPublicKey publicKey) {
-        RSArefPublicKey.ByReference ref = new RSArefPublicKey.ByReference();
-        ref.bits = publicKey.getModulus().bitLength();
-        copyToSdfBuffer(publicKey.getModulus(), ref.m, 512);
-        copyToSdfBuffer(publicKey.getPublicExponent(), ref.e, 512);
-        return ref;
-    }
+    // --- PKCS#1 v1.5 (RFC 8017) padding helpers ---
 
-    private RSArefPrivateKey.ByReference convertToSdfPrivateKey(SDFRSAPrivateKey privateKey) {
-        RSArefPrivateKey.ByReference ref = new RSArefPrivateKey.ByReference();
-        ref.bits = privateKey.getModulus().bitLength();
-        int keyBytes = (ref.bits + 7) / 8;
-        int primeBytes = (keyBytes + 1) / 2;
-
-        copyToSdfBuffer(privateKey.getModulus(), ref.m, 512);
-        copyToSdfBuffer(privateKey.getPublicExponent(), ref.e, 512);
-        copyToSdfBuffer(privateKey.getPrivateExponent(), ref.d, 512);
-        copyToSdfBuffer(privateKey.getPrimeP(), ref.p, 256);
-        copyToSdfBuffer(privateKey.getPrimeQ(), ref.q, 256);
-        copyToSdfBuffer(privateKey.getPrimeExponentP(), ref.dp, 256);
-        copyToSdfBuffer(privateKey.getPrimeExponentQ(), ref.dq, 256);
-        copyToSdfBuffer(privateKey.getCrtCoefficient(), ref.qinv, 256);
-        return ref;
-    }
-
-    private void copyToSdfBuffer(BigInteger value, byte[] buffer, int bufferSize) {
-        byte[] bytes = value.toByteArray();
-        int srcOffset = 0;
-        if (bytes[0] == 0 && bytes.length > 1) {
-            srcOffset = 1;
+    /**
+     * Type-2 encoding: 0x00 0x02 PS 0x00 M, with PS = k - 3 - |M| non-zero random bytes
+     * where k = |n| in bytes. The plaintext is limited to k - 11 bytes.
+     */
+    private byte[] pkcs1Pad(byte[] data, int keySizeBytes) throws IllegalBlockSizeException {
+        int maxLen = keySizeBytes - 11;
+        if (data.length > maxLen) {
+            throw new IllegalBlockSizeException(
+                    "RSA/PKCS1 plaintext too long: " + data.length + " bytes, max " + maxLen);
         }
+        int psLen = keySizeBytes - data.length - 3;
+        byte[] ps = new byte[psLen];
+        secureRandom.nextBytes(ps);
+        for (int i = 0; i < psLen; i++) {
+            while (ps[i] == 0) {
+                byte[] one = new byte[1];
+                secureRandom.nextBytes(one);
+                ps[i] = one[0];
+            }
+        }
+        byte[] em = new byte[keySizeBytes];
+        em[1] = 0x02;
+        System.arraycopy(ps, 0, em, 2, psLen);
+        em[2 + psLen] = 0x00;
+        System.arraycopy(data, 0, em, 3 + psLen, data.length);
+        return em;
+    }
+
+    /**
+     * Type-2 decoding: validate the 0x00 0x02 header and the padding string
+     * (at least 8 non-zero bytes followed by 0x00), then strip it.
+     */
+    private byte[] pkcs1Unpad(byte[] em) throws BadPaddingException {
+        int k = em.length;
+        if (k < 11 || em[0] != 0x00 || em[1] != 0x02) {
+            throw new BadPaddingException("RSA/PKCS1: missing 0x00 0x02 header");
+        }
+        int idx = 2;
+        while (idx < k && em[idx] != 0x00) {
+            idx++;
+        }
+        if (idx >= k || (idx - 2) < 8) {
+            throw new BadPaddingException("RSA/PKCS1: padding string too short");
+        }
+        for (int i = 2; i < idx; i++) {
+            if (em[i] == 0x00) {
+                throw new BadPaddingException("RSA/PKCS1: zero byte inside padding string");
+            }
+        }
+        int mOffset = idx + 1;
+        byte[] message = new byte[k - mOffset];
+        System.arraycopy(em, mOffset, message, 0, message.length);
+        return message;
+    }
+
+    // --- SDF structure conversion helpers ---
+
+    private RSArefPublicKey.ByReference convertToSdfPublicKey(RSAPublicKey key) {
+        RSArefPublicKey.ByReference ref = new RSArefPublicKey.ByReference();
+        ref.bits = key.getModulus().bitLength();
+        copyToSdfBuffer(key.getModulus(), ref.m);
+        copyToSdfBuffer(key.getPublicExponent(), ref.e);
+        return ref;
+    }
+
+    private RSArefPrivateKey.ByReference convertToSdfPrivateKey(SDFRSAPrivateKey key) {
+        RSArefPrivateKey.ByReference ref = new RSArefPrivateKey.ByReference();
+        ref.bits = key.getModulus().bitLength();
+        copyToSdfBuffer(key.getModulus(), ref.m);
+        copyToSdfBuffer(key.getPublicExponent(), ref.e);
+        copyToSdfBuffer(key.getPrivateExponent(), ref.d);
+        copyToSdfBuffer(key.getPrimeP(), ref.p);
+        copyToSdfBuffer(key.getPrimeQ(), ref.q);
+        copyToSdfBuffer(key.getPrimeExponentP(), ref.dp);
+        copyToSdfBuffer(key.getPrimeExponentQ(), ref.dq);
+        copyToSdfBuffer(key.getCrtCoefficient(), ref.qinv);
+        return ref;
+    }
+
+    private void copyToSdfBuffer(BigInteger value, byte[] buffer) {
+        byte[] bytes = value.toByteArray();
+        int srcOffset = (bytes[0] == 0 && bytes.length > 1) ? 1 : 0;
         int length = bytes.length - srcOffset;
-        int destOffset = bufferSize - length;
+        int destOffset = buffer.length - length;
         System.arraycopy(bytes, srcOffset, buffer, destOffset, length);
     }
 
+    private void reset() {
+        buffer.reset();
+        publicKey = null;
+        privateKey = null;
+        internalKeyIndex = 0;
+        internalPassword = null;
+    }
+
     // --- Boilerplate CipherSpi methods ---
+
     @Override protected void engineSetMode(String mode) throws NoSuchAlgorithmException {}
-    @Override protected void engineSetPadding(String padding) throws NoSuchPaddingException {}
+    @Override protected void engineSetPadding(String padding) throws NoSuchPaddingException {
+        String normalized = padding.replace("-", "").toUpperCase();
+        if ("NOPADDING".equals(normalized)) {
+            this.padding = "NoPadding";
+            return;
+        }
+        if ("PKCS1PADDING".equals(normalized)) {
+            this.padding = "PKCS1Padding";
+            return;
+        }
+        throw new NoSuchPaddingException("Unsupported padding: " + padding);
+    }
+
+    // --- 具体的变换变体 ---
+    // JCE 对显式注册的完整变换名（如 "RSA/None/NoPadding"）不会回调 engineSetPadding，
+    // 因此每个变体必须通过独立 SPI 类在构造时固定 padding。
+
+    /** RSA (默认) / RSA/ECB/PKCS1Padding。 */
+    public static class PKCS1 extends RSACipherSpi {
+        public PKCS1() {
+            this.padding = "PKCS1Padding";
+        }
+    }
+
+    /** RSA/None/NoPadding — 裸 RSA，不加填充。 */
+    public static class NoPadding extends RSACipherSpi {
+        public NoPadding() {
+            this.padding = "NoPadding";
+        }
+    }
     @Override protected int engineGetBlockSize() { return 0; }
-    @Override protected int engineGetOutputSize(int inputLen) { return (rsaKey instanceof RSAPublicKey) ? (((RSAPublicKey)rsaKey).getModulus().bitLength() + 7) / 8 : 512; }
     @Override protected byte[] engineGetIV() { return null; }
     @Override protected AlgorithmParameters engineGetParameters() { return null; }
-    @Override protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException { engineInit(opmode, key, random); }
-    @Override protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException { engineInit(opmode, key, random); }
-    @Override protected byte[] engineUpdate(byte[] input, int inputOffset, int inputLen) { buffer.write(input, inputOffset, inputLen); return new byte[0]; }
-    @Override protected int engineUpdate(byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset) throws ShortBufferException { buffer.write(input, inputOffset, inputLen); return 0; }
-    @Override protected int engineDoFinal(byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset) throws ShortBufferException, IllegalBlockSizeException, BadPaddingException { byte[] result = engineDoFinal(input, inputOffset, inputLen); if (output.length - outputOffset < result.length) { throw new ShortBufferException("Output buffer is too short."); } System.arraycopy(result, 0, output, outputOffset, result.length); return result.length; }
+
+    @Override
+    protected int engineGetOutputSize(int inputLen) {
+        if (publicKey != null) {
+            return (publicKey.getModulus().bitLength() + 7) / 8;
+        }
+        return 512;
+    }
+
+    @Override
+    protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random)
+            throws InvalidKeyException, InvalidAlgorithmParameterException {
+        engineInit(opmode, key, random);
+    }
+
+    @Override
+    protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random)
+            throws InvalidKeyException, InvalidAlgorithmParameterException {
+        engineInit(opmode, key, random);
+    }
+
+    @Override
+    protected byte[] engineUpdate(byte[] input, int inputOffset, int inputLen) {
+        buffer.write(input, inputOffset, inputLen);
+        return new byte[0];
+    }
+
+    @Override
+    protected int engineUpdate(byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
+            throws ShortBufferException {
+        buffer.write(input, inputOffset, inputLen);
+        return 0;
+    }
+
+    @Override
+    protected int engineDoFinal(byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
+            throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
+        byte[] result = engineDoFinal(input, inputOffset, inputLen);
+        if (output.length - outputOffset < result.length) {
+            throw new ShortBufferException("Output buffer is too short.");
+        }
+        System.arraycopy(result, 0, output, outputOffset, result.length);
+        return result.length;
+    }
 }

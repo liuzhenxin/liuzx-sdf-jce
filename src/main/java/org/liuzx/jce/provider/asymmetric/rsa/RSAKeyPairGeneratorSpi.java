@@ -11,7 +11,7 @@ import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
-import java.security.KeyPairGenerator;
+import java.security.KeyPairGeneratorSpi;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -20,10 +20,10 @@ import java.security.spec.RSAPublicKeySpec;
 import java.security.interfaces.RSAPublicKey;
 
 /**
- * RSA密钥对生成器的Spi实现，与项目架构保持一致。
+ * RSA密钥对生成器的Spi实现。
  * 支持 "加载" SDF设备内部密钥引用，以及通过SDF设备生成外部RSA密钥对。
  */
-public class RSAKeyPairGeneratorSpi extends KeyPairGenerator {
+public class RSAKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
 
     private RSAInternalKeyGenParameterSpec internalKeySpec;
     private int strength = 2048;
@@ -31,7 +31,6 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGenerator {
     private final SDFSessionManager sessionManager;
 
     public RSAKeyPairGeneratorSpi() {
-        super("RSA");
         this.sessionManager = SDFSessionManager.getInstance();
     }
 
@@ -83,12 +82,12 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGenerator {
             int keyBytes = (refPrivateKey.bits + 7) / 8;
             int primeBytes = (keyBytes + 1) / 2;
 
-            BigInteger d = extractBigInteger(refPrivateKey.d, 512, keyBytes);
-            BigInteger p = extractBigInteger(refPrivateKey.p, 256, primeBytes);
-            BigInteger q = extractBigInteger(refPrivateKey.q, 256, primeBytes);
-            BigInteger dP = extractBigInteger(refPrivateKey.dp, 256, primeBytes);
-            BigInteger dQ = extractBigInteger(refPrivateKey.dq, 256, primeBytes);
-            BigInteger qInv = extractBigInteger(refPrivateKey.qinv, 256, primeBytes);
+            BigInteger d = extractBigInteger(refPrivateKey.d, keyBytes);
+            BigInteger p = extractBigInteger(refPrivateKey.p, primeBytes);
+            BigInteger q = extractBigInteger(refPrivateKey.q, primeBytes);
+            BigInteger dP = extractBigInteger(refPrivateKey.dp, primeBytes);
+            BigInteger dQ = extractBigInteger(refPrivateKey.dq, primeBytes);
+            BigInteger qInv = extractBigInteger(refPrivateKey.qinv, primeBytes);
 
             SDFRSAPrivateKey sdfPrivateKey = new SDFRSAPrivateKey(rsaPublicKey, d, p, q, dP, dQ, qInv);
 
@@ -99,11 +98,10 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGenerator {
         }
     }
 
-    private BigInteger extractBigInteger(byte[] buffer, int bufferSize, int validBytes) {
+    private BigInteger extractBigInteger(byte[] buffer, int validBytes) {
         byte[] bytes = new byte[validBytes];
-        // 假设SDF返回的数据是右对齐的（大端），或者填充在缓冲区的末尾
-        // 根据之前的经验，通常是填充在末尾
-        System.arraycopy(buffer, bufferSize - validBytes, bytes, 0, validBytes);
+        // SDF 返回的大整数在固定缓冲区中右对齐（大端），取末尾 validBytes 字节
+        System.arraycopy(buffer, buffer.length - validBytes, bytes, 0, validBytes);
         return new BigInteger(1, bytes);
     }
 
@@ -125,28 +123,33 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGenerator {
 
     private RSAPublicKey exportRSAPublicKey(SDFSession session, int keyIndex) throws Exception {
         SDFLibrary sdf = sessionManager.getSdfLibrary();
+
+        // 先尝试导出签名公钥；若该索引是加密密钥（返回密钥类型错误），回退导出加密公钥。
+        // 设备密钥类型（SIGN/ENCRYPT）无法从 RSAInternalKeyGenParameterSpec 得知，故用 fallback。
         RSArefPublicKey.ByReference refPublicKey = new RSArefPublicKey.ByReference();
-        
-        int rv = sdf.SDF_ExportEncPublicKey_RSA(session.getSessionHandle(), keyIndex, refPublicKey);
+        int rv = sdf.SDF_ExportSignPublicKey_RSA(session.getSessionHandle(), keyIndex, refPublicKey);
         if (rv != 0) {
-            throw new SDFException("SDF_ExportEncPublicKey_RSA for key index " + keyIndex, rv);
+            refPublicKey = new RSArefPublicKey.ByReference();
+            rv = sdf.SDF_ExportEncPublicKey_RSA(session.getSessionHandle(), keyIndex, refPublicKey);
+            if (rv != 0) {
+                throw new SDFException(
+                        "SDF_ExportSignPublicKey_RSA / SDF_ExportEncPublicKey_RSA for key index " + keyIndex, rv);
+            }
         }
 
         return convertToRSAPublicKey(refPublicKey);
     }
 
     private RSAPublicKey convertToRSAPublicKey(RSArefPublicKey refPublicKey) throws Exception {
-        // 将SDF公钥结构转换为Java RSAPublicKey
         int keyBytes = (refPublicKey.bits + 7) / 8;
-        
-        byte[] modulusBytes = new byte[keyBytes];
-        System.arraycopy(refPublicKey.m, 512 - keyBytes, modulusBytes, 0, keyBytes);
-        
-        byte[] exponentBytes = new byte[4]; // 通常是4字节
-        System.arraycopy(refPublicKey.e, 512 - exponentBytes.length, exponentBytes, 0, exponentBytes.length);
 
+        byte[] modulusBytes = new byte[keyBytes];
+        System.arraycopy(refPublicKey.m, refPublicKey.m.length - keyBytes, modulusBytes, 0, keyBytes);
+
+        // Extract exponent from fixed-size SDF buffer (right-aligned, big-endian).
+        // BigInteger(1, ...) automatically strips leading zeros.
         BigInteger modulus = new BigInteger(1, modulusBytes);
-        BigInteger publicExponent = new BigInteger(1, exponentBytes);
+        BigInteger publicExponent = new BigInteger(1, refPublicKey.e);
 
         RSAPublicKeySpec keySpec = new RSAPublicKeySpec(modulus, publicExponent);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");

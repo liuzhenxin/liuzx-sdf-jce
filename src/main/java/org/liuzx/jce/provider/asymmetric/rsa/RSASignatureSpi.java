@@ -7,7 +7,8 @@ import org.liuzx.jce.provider.session.SDFSession;
 import org.liuzx.jce.provider.session.SDFSessionManager;
 
 import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
 import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
 import java.security.MessageDigest;
@@ -78,30 +79,35 @@ public abstract class RSASignatureSpi extends SignatureSpi {
         byte[] dataToSign = buffer.toByteArray();
         buffer.reset();
 
-        // RSA签名通常是对数据的摘要进行签名
+        // PKCS#1 v1.5: 软件侧构造 EMSA-PKCS1-v1_5 编码块 (00 01 FF..FF 00 || DigestInfo || hash)，
+        // 再交给设备做裸 RSA 私钥运算。这样产物与标准 SHAxxxwithRSA 软件验签互通，
+        // 且不依赖设备对 SDF_InternalSign_RSA 入参（原始消息 vs 预摘要）的语义。
         byte[] hash = digest.digest(dataToSign);
+        byte[] digestInfo = digestInfoPrefix(digest.getAlgorithm());
+        int keySizeBytes = internalPrivateKey.getModulus().bitLength() / 8;
 
         try (SDFSession session = sessionManager.borrowSession()) {
             SDFLibrary sdf = sessionManager.getSdfLibrary(); // Corrected: get library from manager
             int keyIndex = internalPrivateKey.getKeyIndex();
             char[] password = internalPrivateKey.getPassword();
 
-            // 1. 获取私钥访问权限 (如果需要)
+            // 1. 获取私钥访问权限 (如果需要) — 助手方法内部会清零临时 PIN 字节
             if (password != null && password.length > 0) {
-                byte[] pwdBytes = new String(password).getBytes(StandardCharsets.UTF_8);
-                int rv = sdf.SDF_GetPrivateKeyAccessRight(session.getSessionHandle(), keyIndex, pwdBytes, pwdBytes.length);
+                int rv = sessionManager.getPrivateKeyAccessRight(session, keyIndex, password);
                 if (rv != 0) {
                     throw new SDFException("SDF_GetPrivateKeyAccessRight for RSA key", rv);
                 }
             }
 
             try {
-                // 2. 执行内部签名
-                byte[] signature = new byte[internalPrivateKey.getModulus().bitLength() / 8];
-                IntByReference signatureLength = new IntByReference();
-                int rv = sdf.SDF_InternalSign_RSA(session.getSessionHandle(), keyIndex, hash, hash.length, signature, signatureLength);
+                // 2. 构造 EMSA-PKCS1-v1_5 编码块并在设备上执行裸私钥运算
+                byte[] em = pkcs1V15Encode(hash, digestInfo, keySizeBytes);
+                byte[] signature = new byte[keySizeBytes];
+                IntByReference signatureLength = new IntByReference(signature.length);
+                int rv = sdf.SDF_InternalPrivateKeyOperation_RSA(session.getSessionHandle(), keyIndex,
+                        em, em.length, signature, signatureLength);
                 if (rv != 0) {
-                    throw new SDFException("SDF_InternalSign_RSA", rv);
+                    throw new SDFException("SDF_InternalPrivateKeyOperation_RSA", rv);
                 }
 
                 byte[] result = new byte[signatureLength.getValue()];
@@ -149,6 +155,56 @@ public abstract class RSASignatureSpi extends SignatureSpi {
     @Override
     protected Object engineGetParameter(String param) throws InvalidParameterException {
         throw new InvalidParameterException("This signature engine does not support parameters.");
+    }
+
+    // --- PKCS#1 v1.5 (RFC 8017) EMSA encoding helpers ---
+
+    /**
+     * DigestInfo DER prefix for each supported hash algorithm (RFC 8017 §9.2).
+     */
+    private static byte[] digestInfoPrefix(String digestAlg) {
+        switch (digestAlg.replace("-", "").toUpperCase()) {
+            case "SHA1":
+                return new byte[]{(byte) 0x30, (byte) 0x21, (byte) 0x30, (byte) 0x09, (byte) 0x06,
+                        (byte) 0x05, (byte) 0x2b, (byte) 0x0e, (byte) 0x03, (byte) 0x02,
+                        (byte) 0x1a, (byte) 0x05, (byte) 0x00, (byte) 0x04, (byte) 0x14};
+            case "SHA256":
+                return new byte[]{(byte) 0x30, (byte) 0x31, (byte) 0x30, (byte) 0x0d, (byte) 0x06,
+                        (byte) 0x09, (byte) 0x60, (byte) 0x86, (byte) 0x48, (byte) 0x01,
+                        (byte) 0x65, (byte) 0x03, (byte) 0x04, (byte) 0x02, (byte) 0x01,
+                        (byte) 0x05, (byte) 0x00, (byte) 0x04, (byte) 0x20};
+            case "SHA512":
+                return new byte[]{(byte) 0x30, (byte) 0x51, (byte) 0x30, (byte) 0x0d, (byte) 0x06,
+                        (byte) 0x09, (byte) 0x60, (byte) 0x86, (byte) 0x48, (byte) 0x01,
+                        (byte) 0x65, (byte) 0x03, (byte) 0x04, (byte) 0x02, (byte) 0x03,
+                        (byte) 0x05, (byte) 0x00, (byte) 0x04, (byte) 0x40};
+            case "MD5":
+                return new byte[]{(byte) 0x30, (byte) 0x20, (byte) 0x30, (byte) 0x0c, (byte) 0x06,
+                        (byte) 0x08, (byte) 0x2a, (byte) 0x86, (byte) 0x48, (byte) 0x86,
+                        (byte) 0xf7, (byte) 0x0d, (byte) 0x02, (byte) 0x05, (byte) 0x05,
+                        (byte) 0x00, (byte) 0x04, (byte) 0x10};
+            default:
+                throw new IllegalArgumentException("Unsupported digest for RSA signing: " + digestAlg);
+        }
+    }
+
+    /**
+     * EMSA-PKCS1-v1_5 encoding: 0x00 0x01 PS 0x00 || DigestInfo || hash, PS = 0xFF x (k - len(T) - 3).
+     */
+    private static byte[] pkcs1V15Encode(byte[] hash, byte[] digestInfo, int keySizeBytes) throws SignatureException {
+        byte[] t = new byte[digestInfo.length + hash.length];
+        System.arraycopy(digestInfo, 0, t, 0, digestInfo.length);
+        System.arraycopy(hash, 0, t, digestInfo.length, hash.length);
+        if (t.length > keySizeBytes - 11) {
+            throw new SignatureException("RSA key too small for " + t.length + "-byte DigestInfo+hash");
+        }
+        int psLen = keySizeBytes - t.length - 3;
+        byte[] em = new byte[keySizeBytes];
+        em[1] = 0x01;
+        Arrays.fill(em, 2, 2 + psLen, (byte) 0xFF);
+        em[2 + psLen] = 0x00;
+        System.arraycopy(t, 0, em, 3 + psLen, t.length);
+        return em;
     }
 
     // --- 为不同的摘要算法创建具体的内部类 ---

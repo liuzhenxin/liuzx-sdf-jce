@@ -16,7 +16,7 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.ShortBufferException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -28,6 +28,7 @@ import java.security.spec.AlgorithmParameterSpec;
 public class SM2CipherSpi extends CipherSpi {
 
     private static final int SGD_SM2_3 = 0x00020800; // SM2 encryption algorithm ID
+    private static final int MAX_PLAIN_LENGTH = 1024; // ECCCipher.C 缓冲区上限
 
     private final SDFSessionManager sessionManager;
     private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -35,6 +36,8 @@ public class SM2CipherSpi extends CipherSpi {
 
     private SM2PublicKey sm2PublicKey;
     private SM2PrivateKey sm2PrivateKey;
+    private int internalKeyIndex; // 0 = external key
+    private char[] internalPassword;
 
     public SM2CipherSpi() {
         this.sessionManager = SDFSessionManager.getInstance();
@@ -43,12 +46,21 @@ public class SM2CipherSpi extends CipherSpi {
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException {
         this.opmode = opmode;
+        this.internalKeyIndex = 0;
+        this.internalPassword = null;
         if (opmode == Cipher.ENCRYPT_MODE) {
-            if (!(key instanceof SM2PublicKey)) {
-                throw new InvalidKeyException("Encryption requires an SM2PublicKey.");
+            if (key instanceof SM2PublicKey) {
+                this.sm2PublicKey = (SM2PublicKey) key;
+                this.sm2PrivateKey = null;
+            } else if (key instanceof SM2PrivateKey && ((SM2PrivateKey) key).isInternalKey()) {
+                SM2PrivateKey pk = (SM2PrivateKey) key;
+                this.sm2PublicKey = new SM2PublicKey(pk.getKeyIndex(), pk.getEccPublicKey());
+                this.sm2PrivateKey = null;
+                this.internalKeyIndex = pk.getKeyIndex();
+                this.internalPassword = pk.getPassword();
+            } else {
+                throw new InvalidKeyException("Encryption requires an SM2PublicKey or internal SM2PrivateKey.");
             }
-            this.sm2PublicKey = (SM2PublicKey) key;
-            this.sm2PrivateKey = null;
         } else if (opmode == Cipher.DECRYPT_MODE) {
             if (!(key instanceof SM2PrivateKey)) {
                 throw new InvalidKeyException("Decryption requires an SM2PrivateKey.");
@@ -63,7 +75,10 @@ public class SM2CipherSpi extends CipherSpi {
 
     @Override
     protected byte[] engineDoFinal(byte[] input, int inputOffset, int inputLen) throws IllegalBlockSizeException, BadPaddingException {
-        engineUpdate(input, inputOffset, inputLen);
+        // JCE 的无参 doFinal() 会以 (null, 0, 0) 调用；跳过 update 避免 NPE
+        if (input != null) {
+            engineUpdate(input, inputOffset, inputLen);
+        }
         byte[] data = buffer.toByteArray();
         buffer.reset();
 
@@ -77,18 +92,39 @@ public class SM2CipherSpi extends CipherSpi {
             throw new SDFException("ASN.1 encoding/decoding failed", -1);
         } catch (Exception e) {
             if (e instanceof BadPaddingException) throw (BadPaddingException) e;
+            if (e instanceof IllegalBlockSizeException) throw (IllegalBlockSizeException) e;
             if (e instanceof SDFException) throw (SDFException) e;
             throw new BadPaddingException("Decryption failed: " + e.getMessage());
         }
     }
 
-    private byte[] doEncrypt(SDFSession session, byte[] data) throws IOException {
+    private byte[] doEncrypt(SDFSession session, byte[] data) throws IOException, IllegalBlockSizeException {
         SDFLibrary sdf = SDFLibrary.getInstance();
         ECCCipher.ByReference eccCipher = new ECCCipher.ByReference();
+        int rv;
 
-        int rv = sdf.SDF_ExternalEncrypt_ECC(session.getSessionHandle(), SGD_SM2_3, sm2PublicKey.getEccPublicKey(), data, data.length, eccCipher);
-        if (rv != 0) {
-            throw new SDFException("SDF_ExternalEncrypt_ECC", rv);
+        if (data.length > MAX_PLAIN_LENGTH) {
+            throw new IllegalBlockSizeException(
+                    "SM2 plaintext too long: " + data.length + " > " + MAX_PLAIN_LENGTH);
+        }
+
+        if (internalKeyIndex != 0) {
+            // Internal key encryption using SDF_InternalEncrypt_ECC
+            if (internalPassword != null && internalPassword.length > 0) {
+                rv = sessionManager.getPrivateKeyAccessRight(session, internalKeyIndex, internalPassword);
+                if (rv != 0) throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
+            }
+            try {
+                rv = sdf.SDF_InternalEncrypt_ECC(session.getSessionHandle(), internalKeyIndex, SGD_SM2_3, data, data.length, eccCipher);
+                if (rv != 0) throw new SDFException("SDF_InternalEncrypt_ECC", rv);
+            } finally {
+                if (internalPassword != null && internalPassword.length > 0) {
+                    sdf.SDF_ReleasePrivateKeyAccessRight(session.getSessionHandle(), internalKeyIndex);
+                }
+            }
+        } else {
+            rv = sdf.SDF_ExternalEncrypt_ECC(session.getSessionHandle(), SGD_SM2_3, sm2PublicKey.getEccPublicKey(), data, data.length, eccCipher);
+            if (rv != 0) throw new SDFException("SDF_ExternalEncrypt_ECC", rv);
         }
         return ASN1Util.toASN1Ciphertext(eccCipher);
     }
@@ -103,8 +139,7 @@ public class SM2CipherSpi extends CipherSpi {
         if (sm2PrivateKey.isInternalKey()) {
             char[] password = sm2PrivateKey.getPassword();
             if (password != null && password.length > 0) {
-                byte[] pwdBytes = new String(password).getBytes(StandardCharsets.UTF_8);
-                rv = sdf.SDF_GetPrivateKeyAccessRight(session.getSessionHandle(), sm2PrivateKey.getKeyIndex(), pwdBytes, pwdBytes.length);
+                rv = sessionManager.getPrivateKeyAccessRight(session, sm2PrivateKey.getKeyIndex(), password);
                 if (rv != 0) {
                     throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
                 }
@@ -131,14 +166,6 @@ public class SM2CipherSpi extends CipherSpi {
         return result;
     }
 
-    private static String toHexString(byte[] bytes) {
-        if (bytes == null) return "null";
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02X", b));
-        }
-        return sb.toString();
-    }
 
     // --- Other CipherSpi methods (boilerplate) ---
     @Override protected void engineSetMode(String mode) throws NoSuchAlgorithmException {}

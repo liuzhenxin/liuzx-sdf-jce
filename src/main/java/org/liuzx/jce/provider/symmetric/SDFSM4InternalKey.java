@@ -43,7 +43,7 @@ public class SDFSM4InternalKey implements SecretKey {
         return keyLengthBytes;
     }
 
-    byte[] getEncryptedKey() {
+    public byte[] getEncryptedKey() {
         return Arrays.copyOf(encryptedKey, encryptedKey.length);
     }
 

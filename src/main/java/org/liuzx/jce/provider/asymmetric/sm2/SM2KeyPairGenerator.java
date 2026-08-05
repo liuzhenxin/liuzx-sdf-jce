@@ -75,9 +75,17 @@ public class SM2KeyPairGenerator extends KeyPairGeneratorSpi {
             int keyIndex = internalKeySpec.getKeyIndex();
             
             ECCrefPublicKey.ByReference pubKeyRef = new ECCrefPublicKey.ByReference();
-            
-            String functionName = "SDF_ExportSignPublicKey_ECC";
-            int rv = sdf.SDF_ExportSignPublicKey_ECC(session.getSessionHandle(), keyIndex, pubKeyRef);
+
+            // 按 KeyType 选择导出签名公钥或加密公钥，避免 ENCRYPT 密钥返回错误的 SIGN 公钥
+            String functionName;
+            int rv;
+            if (internalKeySpec.getKeyType() == SM2InternalKeyGenParameterSpec.KeyType.ENCRYPT) {
+                functionName = "SDF_ExportEncPublicKey_ECC";
+                rv = sdf.SDF_ExportEncPublicKey_ECC(session.getSessionHandle(), keyIndex, pubKeyRef);
+            } else {
+                functionName = "SDF_ExportSignPublicKey_ECC";
+                rv = sdf.SDF_ExportSignPublicKey_ECC(session.getSessionHandle(), keyIndex, pubKeyRef);
+            }
 
             if (rv != 0) {
                 throw new SDFException(functionName, rv);
