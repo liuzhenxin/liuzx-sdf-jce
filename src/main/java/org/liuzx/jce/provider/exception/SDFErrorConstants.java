@@ -36,4 +36,11 @@ public interface SDFErrorConstants {
     int SDR_NOBUFFER = SDR_BASE + 0x0000001C;
     int SDR_INARGERR = SDR_BASE + 0x0000001D;
     int SDR_OUTARGERR = SDR_BASE + 0x0000001F;
+
+    /**
+     * 数盾(Shudun) 厂商自定义：密码机就绪状态无访问权限。
+     * HSM 未处于就绪状态时拒绝内部密钥操作（如 SDF_ImportKEK），
+     * 此时会话不可用，应销毁重建（HSM 恢复后自动自愈）。
+     */
+    int SDR_HSM_NOT_READY = 0x01000403;
 }

@@ -111,7 +111,9 @@ public class SDFSessionManager {
                 || rv == SDFErrorConstants.SDR_COMMFAIL
                 || rv == SDFErrorConstants.SDR_HARDFAIL
                 || rv == SDFErrorConstants.SDR_OPENDEVICE
-                || rv == SDFErrorConstants.SDR_OPENSESSION;
+                || rv == SDFErrorConstants.SDR_OPENSESSION
+                // HSM 未就绪（数盾 0x01000403）：会话不可用，销毁重建以在 HSM 恢复后自愈
+                || rv == SDFErrorConstants.SDR_HSM_NOT_READY;
     }
 
     public SDFSession borrowSession() {
