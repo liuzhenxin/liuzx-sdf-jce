@@ -40,7 +40,7 @@ mvn clean package
 该命令会完成以下操作：
 1. 编译所有Java源代码。
 2. 将所有依赖项（如 JNA, Gson）复制到 `target/lib` 目录。
-3. 将本项目打包成 `target/liuzx-sdf-jce-1.0-SNAPSHOT.jar`。
+3. 将本项目打包成 `target/liuzx-sdf-jce-1.1.0-SNAPSHOT.jar`。
 4. **（重要）** 使用 `keystore.jks` 对主JAR包进行签名，以满足JCE Provider的安全要求。
 
 ### 2. 运行演示程序
@@ -92,12 +92,15 @@ mvn clean package
 
 ```bash
 # 使用 liuzx-nas 工程当前携带的数盾 SDF 动态库
+# （主 JAR 不含 Class-Path，依赖放在 target/lib 下，需用 -cp 指定）
 java -Dliuzx.sdf.vendor=Shudun \
-  -jar target/liuzx-sdf-jce-1.0-SNAPSHOT.jar
+  -cp target/liuzx-sdf-jce-1.1.0-SNAPSHOT.jar:target/lib/* \
+  org.liuzx.jce.demo.Main
 
 # 直接指定某个动态库路径，优先级高于 vendor 配置
 java -Dliuzx.sdf.library.path=/usr/lib64/libsdhsmcrypto.so \
-  -jar target/liuzx-sdf-jce-1.0-SNAPSHOT.jar
+  -cp target/liuzx-sdf-jce-1.1.0-SNAPSHOT.jar:target/lib/* \
+  org.liuzx.jce.demo.Main
 ```
 
 `Shudun` 配置的动态库已放在本工程 `src/main/resources/native/shudun/` 下，并会随 JAR 打包。配置使用 `classpath:` 路径，运行时会自动将 JAR 内动态库解压到临时目录后交给 JNA 加载。生产部署也可以使用 `-Dliuzx.sdf.library.path` 显式指定外部固定路径，优先级高于 vendor 配置。
@@ -121,7 +124,23 @@ log.file=liuzx-jce.log
 
 ## 💻 使用示例
 
-在您的Java项目中，可以像使用任何标准JCE Provider一样使用本库。
+### 通过 Maven 引入（发布到 Maven Central 后可用）
+
+在 `pom.xml` 中声明依赖即可，`jna`/`gson` 会自动传递解析，无需手动配置：
+
+```xml
+<dependency>
+    <groupId>org.liuzx</groupId>
+    <artifactId>liuzx-sdf-jce</artifactId>
+    <version>1.1.0</version>
+</dependency>
+```
+
+> 注意：本库是**硬件相关**的 JCE Provider，运行时必须连接真实的 SDF 密码设备，
+> 并通过 `-Dliuzx.sdf.library.path=<库路径>` 或 `-Dliuzx.sdf.vendor=<厂商>` 指定动态库，
+> 或使用 jar 内随包分发的数盾动态库（`classpath:` 方式）。无硬件时仅能注册 Provider，密码运算会失败。
+
+在您的Java项目中，可以像使用任何标准JCE Provider一样使用本库：
 
 ```java
 import org.liuzx.jce.provider.LiuZXProvider;

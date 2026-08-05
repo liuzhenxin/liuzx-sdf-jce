@@ -8,6 +8,39 @@
     <artifactId>liuzx-sdf-jce</artifactId>
     <version>1.1.0-SNAPSHOT</version>
 
+    <name>liuzx-sdf-jce</name>
+    <description>GM/T 0018-2012 SDF hardware Java Cryptography Extension (JCE) Provider.
+        Provides SM2/SM3/SM4/RSA/EdDSA and hardware SecureRandom via JNA.</description>
+    <url>https://github.com/liuzhenxin/liuzx-sdf-jce</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>liuzhenxin</id>
+            <name>liuzhenxin</name>
+            <email>you@example.com</email>
+            <url>https://github.com/liuzhenxin</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git@github.com:liuzhenxin/liuzx-sdf-jce.git</connection>
+        <developerConnection>scm:git:git@github.com:liuzhenxin/liuzx-sdf-jce.git</developerConnection>
+        <url>https://github.com/liuzhenxin/liuzx-sdf-jce</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <issueManagement>
+        <system>GitHub Issues</system>
+        <url>https://github.com/liuzhenxin/liuzx-sdf-jce/issues</url>
+    </issueManagement>
+
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
@@ -71,8 +104,9 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <addClasspath>true</addClasspath>
-                            <classpathPrefix>lib/</classpathPrefix>
+                            <!-- 不发 Class-Path：Central 使用方加载时 JCE 框架只验证 provider jar 本身，
+                                 jna/gson 作为普通 Maven 依赖由使用方解析。本地便携分发用 -cp 方式不受影响。 -->
+                            <addClasspath>false</addClasspath>
                             <mainClass>${main.class}</mainClass>
                         </manifest>
                     </archive>
@@ -155,5 +189,92 @@
             </plugin>
         </plugins>
     </build>
+
+    <!--
+        发布到 Maven Central (Sonatype Central Portal) 专用 profile。
+        用法：mvn clean deploy -Prelease -DskipTests=true
+        前置：域名 liuzx.org 已在 Central Portal 验证；settings.xml 配好
+              <server id="central">(User Token) 与 gpg.keyname / gpg.passphrase。
+        GPG 签名会覆盖主 jar、-sources.jar、-javadoc.jar 及 .pom。
+    -->
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <!-- Attach -sources.jar -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.4.0</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- Attach -javadoc.jar (JDK 25 + source/target 1.8: source=8, doclint=none) -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.12.0</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                                <configuration>
+                                    <source>8</source>
+                                    <doclint>none</doclint>
+                                    <failOnWarnings>false</failOnWarnings>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- GPG-sign main jar, -sources.jar, -javadoc.jar and the .pom -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.8</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                                <configuration>
+                                    <keyname>${gpg.keyname}</keyname>
+                                    <passphrase>${gpg.passphrase}</passphrase>
+                                    <gpgArguments>
+                                        <arg>--pinentry-mode</arg>
+                                        <arg>loopback</arg>
+                                    </gpgArguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- Publish to Sonatype Central Portal on mvn deploy -->
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.11.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
