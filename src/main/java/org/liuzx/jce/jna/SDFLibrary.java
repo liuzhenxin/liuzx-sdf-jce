@@ -230,8 +230,6 @@ public interface SDFLibrary extends Library {
     // =========================================================================
     int SDF_HMAC(Pointer hSessionHandle, Pointer hKeyHandle, int uiAlgID, byte[] pucInData,
             int uiInDataLength, byte[] pucOutData, IntByReference puiOutDataLength);
-    int SDF_HMACBatch(Pointer hSessionHandle, Pointer hKeyHandle, int uiAlgID, Pointer pucDataArray,
-            IntByReference uiDataLengthArray, Pointer pucHmacArray, IntByReference puiHmacLenArray, int arrayCount);
 
     // =========================================================================
     // Hash Operations

@@ -9,13 +9,15 @@
 ## ✨ 特性
 
 - **符合JCE标准**: 可通过 `Security.addProvider()` 动态注册，并通过标准JCE API（`Signature`, `Cipher`, `KeyPairGenerator`等）进行调用。
-- **国密算法 + RSA 全面支持**:
-  - **SM2**: 内部/外部密钥对的签名、验签、加密、解密。
-  - **SM3**: 消息摘要计算。
-  - **SM4**: ECB和CBC模式的加密与解密，支持硬件内部密钥（通过 `SDFSM4Keys.internalKey(index)` 使用）。
-  - **RSA**: 内部/外部密钥对的签名（SHA1/SHA256/SHA512/MD5）、加密、解密。
+- **国密算法 + RSA/ECDSA/EdDSA/DSA 全面支持**:
+  - **SM2**: 内部/外部密钥对的签名、验签、加密、解密，以及 SM2 密钥协商（ECDH）。
+  - **SM3**: 消息摘要计算（硬件实现）。
+  - **SM4**: **ECB/CBC/CFB/OFB** 四种模式（PKCS5Padding / NoPadding）的加密与解密，支持硬件内部密钥（通过 `SDFSM4Keys.internalKey(index)` 使用），以及 SM4-MAC。
+  - **RSA**: 内部/外部密钥对的签名（SHA1/SHA256/SHA512/MD5）、加密、解密。**`RSA/ECB/PKCS1Padding` 为标准 PKCS#1 v1.5 填充**，签名产物与标准 JCE 验签互通。
+  - **ECDSA / EdDSA / DSA**: 内部密钥对的签名与验签（`SHA256withECDSA` / `EdDSA` / `SHA1withDSA`）。**注意：实测数盾 SDF 库不导出 `SDF_GenerateKeyPair_ECDSA/EDDSA/DSA` 等函数，这三个算法在数盾设备上不可用**；需使用导出这些函数的厂商库（如 Dysx）。
+  - **摘要/HMAC**: SHA-1/SHA-224/SHA-256/SHA-384/SHA-512/MD5（硬件）、HmacSM3/HmacSHA1/HmacSHA256/HmacSHA512。
 - **硬件密钥支持**: 支持使用存储在密码设备内部的 SM2/RSA/SM4 密钥进行密码运算，私钥永不离开硬件。
-- **数盾 (Shudun) 厂商支持**: 内置数盾 SDF 动态库（Linux x86_64 / Windows x86_64），通过 `classpath:` 机制随 JAR 打包分发，无需手动安装动态库即可使用。
+- **数盾 (Shudun) 厂商支持**: 内置数盾 SDF 动态库（Linux x86_64 / Windows x86_64），通过 `classpath:` 机制随 JAR 打包分发，无需手动安装动态库即可使用。**注：数盾 SDF 库使用 Lite 版 RSA 结构体**（`m[256]/e[256]`、CRT 参数 `[128]`，最大 2048 位），本 Provider 已按该布局适配。
 - **跨平台**: 通过配置文件支持在不同操作系统和CPU架构（Linux/Windows/macOS, x86_64/aarch64）下加载对应的SDF动态库。
 - **可配置的日志系统**: 内置一个无第三方依赖的日志系统，支持通过配置文件开关、设置级别和输出路径。
 - **国际化**: 演示程序支持中英文切换。

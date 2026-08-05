@@ -33,7 +33,9 @@ public class SDFMacSpi extends MacSpi {
 
     private byte[] keyBytes;
     private SDFSM4InternalKey internalKeyInfo;
-    private byte[] iv;
+    // SMS4-MAC（CBC-MAC）需要非空 IV；无参数传入时默认全零块。
+    // 注意：实测数盾设备要求输入数据为 16 字节块对齐（非对齐返回 SDR_INARGERR），调用方需自行填充。
+    private byte[] iv = new byte[16];
 
     protected SDFMacSpi(int algId, int macLength) {
         this.sessionManager = SDFSessionManager.getInstance();
@@ -52,7 +54,7 @@ public class SDFMacSpi extends MacSpi {
         buffer.reset();
         this.keyBytes = null;
         this.internalKeyInfo = null;
-        this.iv = null;
+        this.iv = new byte[16]; // SMS4-MAC 默认全零 IV
 
         if (key instanceof SDFSM4InternalKey) {
             this.internalKeyInfo = (SDFSM4InternalKey) key;

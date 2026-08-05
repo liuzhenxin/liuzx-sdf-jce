@@ -23,7 +23,8 @@ public class RSAFullFeatureTest {
 
     // !!! 重要 !!!
     // !!! 请将此值修改为您SDF设备上实际存在的RSA密钥对索引 !!!
-    private static final int INTERNAL_RSA_KEY_INDEX = 1;
+    // 可通过 -Dliuzx.test.rsa.keyIndex=<N> 指定本机实际存在的 RSA 内部密钥索引
+    private static final int INTERNAL_RSA_KEY_INDEX = Integer.getInteger("liuzx.test.rsa.keyIndex", 1);
 
     @BeforeAll
     public static void setup() {
