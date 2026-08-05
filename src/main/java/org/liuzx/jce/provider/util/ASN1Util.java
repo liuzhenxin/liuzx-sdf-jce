@@ -2,12 +2,17 @@ package org.liuzx.jce.provider.util;
 
 import org.liuzx.jce.jna.structure.ECCCipher;
 import org.liuzx.jce.jna.structure.ECCrefPrivateKey;
+import org.liuzx.jce.jna.structure.ECCrefPrivateKey_ECDSA;
 import org.liuzx.jce.jna.structure.ECCrefPublicKey;
+import org.liuzx.jce.jna.structure.ECCrefPublicKey_ECDSA;
 import org.liuzx.jce.jna.structure.ECCSignature;
+import org.liuzx.jce.jna.structure.DSArefPrivateKey;
+import org.liuzx.jce.jna.structure.DSArefPublicKey;
 
 import javax.crypto.BadPaddingException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.security.SignatureException;
 import java.util.Arrays;
 
@@ -39,12 +44,12 @@ public final class ASN1Util {
         writeTLV(paramsStream, ASN1_OBJECT_IDENTIFIER, GMObjectIdentifiers.OID_SM2_P256V1, false);
         writeTLV(ecPrivateKeyStream, ASN1_CONTEXT_SPECIFIC_0, paramsStream.toByteArray(), false);
 
-        // 4. publicKey [1] (BIT STRING)
+        // 4. publicKey [1] (BIT STRING) — 标准非压缩点 0x04 ‖ X(32) ‖ Y(32)
         ByteArrayOutputStream pubKeyBitStringStream = new ByteArrayOutputStream();
         pubKeyBitStringStream.write(0x00); // Unused bits
         pubKeyBitStringStream.write(0x04); // Uncompressed point indicator
-        pubKeyBitStringStream.write(publicKey.x);
-        pubKeyBitStringStream.write(publicKey.y);
+        pubKeyBitStringStream.write(lastNBytes(publicKey.x, 32)); // 32-byte X (64 字节缓冲右对齐)
+        pubKeyBitStringStream.write(lastNBytes(publicKey.y, 32)); // 32-byte Y
         writeTLV(ecPrivateKeyStream, ASN1_CONTEXT_SPECIFIC_1, pubKeyBitStringStream.toByteArray(), false);
 
         byte[] ecPrivateKeyBytes = ecPrivateKeyStream.toByteArray();
@@ -74,10 +79,10 @@ public final class ASN1Util {
     // --- Existing Methods Below ---
     public static byte[] toX509PublicKey(ECCrefPublicKey sm2PublicKey) throws IOException {
         ByteArrayOutputStream spStream = new ByteArrayOutputStream();
-        spStream.write(0x00);
-        spStream.write(0x04);
-        spStream.write(sm2PublicKey.x);
-        spStream.write(sm2PublicKey.y);
+        spStream.write(0x00); // BIT STRING unused bits
+        spStream.write(0x04); // Uncompressed point indicator
+        spStream.write(lastNBytes(sm2PublicKey.x, 32)); // 32-byte X
+        spStream.write(lastNBytes(sm2PublicKey.y, 32)); // 32-byte Y
         byte[] subjectPublicKeyBytes = spStream.toByteArray();
         
         ByteArrayOutputStream algIdStream = new ByteArrayOutputStream();
@@ -193,6 +198,16 @@ public final class ASN1Util {
         } catch (Exception e) {
             throw new BadPaddingException("Failed to decode ASN.1 ciphertext: " + e.getMessage());
         }
+    }
+
+    /**
+     * 取固定长度缓冲区的末尾 n 字节（大端右对齐）。
+     * 用于从 64 字节 ECC 坐标缓冲提取 SM2(256位) 的 32 字节坐标。
+     */
+    private static byte[] lastNBytes(byte[] buffer, int n) {
+        byte[] out = new byte[n];
+        System.arraycopy(buffer, buffer.length - n, out, 0, n);
+        return out;
     }
 
     private static byte[] trimLeadingZeros(byte[] data) {
@@ -323,5 +338,166 @@ public final class ASN1Util {
             return stripped;
         }
         return value;
+    }
+
+    // ===== 新算法密钥编码（X.509 SPKI / PKCS#8）=====
+
+    /**
+     * 将 OID 弧数组编码为 DER OBJECT IDENTIFIER value（不含 tag/length）。
+     */
+    public static byte[] encodeOID(int[] arcs) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(arcs[0] * 40 + arcs[1]);
+        for (int i = 2; i < arcs.length; i++) {
+            int value = arcs[i];
+            byte[] groups = new byte[8];
+            int n = 0;
+            groups[n++] = (byte) (value & 0x7F);
+            value >>>= 7;
+            while (value > 0) {
+                groups[n++] = (byte) ((value & 0x7F) | 0x80);
+                value >>>= 7;
+            }
+            for (int j = n - 1; j >= 0; j--) {
+                out.write(groups[j]);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * ECDSA 曲线 OID。假设设备使用标准 NIST P 曲线（按密钥位数映射）。
+     * 不支持 256/384/521 位时返回 null。
+     */
+    private static byte[] ecdsaCurveOID(int bits) {
+        switch (bits) {
+            case 256: return encodeOID(new int[]{1, 2, 840, 10045, 3, 1, 7}); // P-256
+            case 384: return encodeOID(new int[]{1, 3, 132, 0, 34});          // P-384
+            case 521: return encodeOID(new int[]{1, 3, 132, 0, 35});          // P-521
+            default:  return null;
+        }
+    }
+
+    /** Ed25519 公钥 X.509 SPKI（RFC 8410，无参数）。 */
+    public static byte[] toEd25519PublicKeyEncoded(byte[] pubKey) throws IOException {
+        ByteArrayOutputStream algId = new ByteArrayOutputStream();
+        writeTLV(algId, ASN1_OBJECT_IDENTIFIER, encodeOID(new int[]{1, 3, 101, 112}), false);
+        ByteArrayOutputStream bitStr = new ByteArrayOutputStream();
+        bitStr.write(0x00); // unused bits
+        bitStr.write(pubKey, 0, pubKey.length);
+        return wrapSequence(algId.toByteArray(), bitStr.toByteArray());
+    }
+
+    /** Ed25519 私钥 PKCS#8（RFC 8410，不含可选 publicKey 字段）。 */
+    public static byte[] toEd25519PrivateKeyEncoded(byte[] priKey) throws IOException {
+        ByteArrayOutputStream algId = new ByteArrayOutputStream();
+        writeTLV(algId, ASN1_OBJECT_IDENTIFIER, encodeOID(new int[]{1, 3, 101, 112}), false);
+        ByteArrayOutputStream curvePriv = new ByteArrayOutputStream();
+        writeTLV(curvePriv, ASN1_OCTET_STRING, priKey, false);
+        ByteArrayOutputStream pkcs8 = new ByteArrayOutputStream();
+        writeTLV(pkcs8, ASN1_INTEGER, new byte[]{0x00}, false);
+        writeTLV(pkcs8, ASN1_SEQUENCE, algId.toByteArray(), false);      // AlgorithmIdentifier
+        writeTLV(pkcs8, ASN1_OCTET_STRING, curvePriv.toByteArray(), false);
+        return wrapSequence(pkcs8.toByteArray());
+    }
+
+    /** DSA 公钥 X.509 SPKI（OID 1.2.840.10040.4.1 + Dss-Parms）。 */
+    public static byte[] toDSAPublicKeyEncoded(DSArefPublicKey key) throws IOException {
+        byte[] algId = dsaAlgorithmIdentifier(trimLeadingZeros(key.p), trimLeadingZeros(key.q), trimLeadingZeros(key.g));
+        // DSAKeyFactory 把 BIT STRING 内容当 DER INTEGER 解析（parseKeyBits -> getBigInteger），
+        // 因此 subjectPublicKey 必须是 00(unused bits) + INTEGER(y)，而非裸 y 字节。
+        byte[] yRaw = lastNBytes(key.y, (key.bits + 7) / 8);
+        ByteArrayOutputStream yInt = new ByteArrayOutputStream();
+        writeTLV(yInt, ASN1_INTEGER, yRaw, true);
+        ByteArrayOutputStream bitStr = new ByteArrayOutputStream();
+        bitStr.write(0x00); // unused bits
+        bitStr.write(yInt.toByteArray(), 0, yInt.size());
+        return wrapSequence(algId, bitStr.toByteArray());
+    }
+
+    /** DSA 私钥 PKCS#8。 */
+    public static byte[] toDSAPrivateKeyEncoded(DSArefPrivateKey key) throws IOException {
+        byte[] algId = dsaAlgorithmIdentifier(trimLeadingZeros(key.p), trimLeadingZeros(key.q), trimLeadingZeros(key.g));
+        ByteArrayOutputStream xInt = new ByteArrayOutputStream();
+        writeTLV(xInt, ASN1_INTEGER, trimLeadingZeros(key.x), true);
+        ByteArrayOutputStream pkcs8 = new ByteArrayOutputStream();
+        writeTLV(pkcs8, ASN1_INTEGER, new byte[]{0x00}, false);
+        writeTLV(pkcs8, ASN1_SEQUENCE, algId, false);      // AlgorithmIdentifier
+        writeTLV(pkcs8, ASN1_OCTET_STRING, xInt.toByteArray(), false);
+        return wrapSequence(pkcs8.toByteArray());
+    }
+
+    /** ECDSA 公钥 X.509 SPKI（id-ecPublicKey + 曲线 OID + 非压缩点）。 */
+    public static byte[] toECDSAPublicKeyEncoded(ECCrefPublicKey_ECDSA key) throws IOException {
+        byte[] curveOid = ecdsaCurveOID(key.bits);
+        if (curveOid == null) {
+            return null;
+        }
+        int coordBytes = (key.bits + 7) / 8;
+        byte[] x = lastNBytes(key.x, coordBytes);
+        byte[] y = lastNBytes(key.y, coordBytes);
+        ByteArrayOutputStream algId = new ByteArrayOutputStream();
+        writeTLV(algId, ASN1_OBJECT_IDENTIFIER, encodeOID(new int[]{1, 2, 840, 10045, 2, 1}), false);
+        writeTLV(algId, ASN1_OBJECT_IDENTIFIER, curveOid, false);
+        ByteArrayOutputStream point = new ByteArrayOutputStream();
+        point.write(0x00); // unused bits
+        point.write(0x04); // uncompressed
+        point.write(x, 0, x.length);
+        point.write(y, 0, y.length);
+        return wrapSequence(algId.toByteArray(), point.toByteArray());
+    }
+
+    /** ECDSA 私钥 PKCS#8（ECPrivateKey，不含可选 publicKey 字段）。 */
+    public static byte[] toECDSAPrivateKeyEncoded(ECCrefPrivateKey_ECDSA key) throws IOException {
+        byte[] curveOid = ecdsaCurveOID(key.bits);
+        if (curveOid == null) {
+            return null;
+        }
+        // ECPrivateKey ::= SEQUENCE { version, privateKey, parameters [0] }
+        ByteArrayOutputStream ecPriv = new ByteArrayOutputStream();
+        writeTLV(ecPriv, ASN1_INTEGER, new byte[]{0x01}, false);
+        writeTLV(ecPriv, ASN1_OCTET_STRING, trimLeadingZeros(key.K), false);
+        ByteArrayOutputStream params = new ByteArrayOutputStream();
+        writeTLV(params, ASN1_OBJECT_IDENTIFIER, curveOid, false);
+        writeTLV(ecPriv, ASN1_CONTEXT_SPECIFIC_0, params.toByteArray(), false);
+        ByteArrayOutputStream ecPrivSeq = new ByteArrayOutputStream();
+        writeTLV(ecPrivSeq, ASN1_SEQUENCE, ecPriv.toByteArray(), false);
+        ByteArrayOutputStream algId = new ByteArrayOutputStream();
+        writeTLV(algId, ASN1_OBJECT_IDENTIFIER, encodeOID(new int[]{1, 2, 840, 10045, 2, 1}), false);
+        writeTLV(algId, ASN1_OBJECT_IDENTIFIER, curveOid, false);
+        ByteArrayOutputStream pkcs8 = new ByteArrayOutputStream();
+        writeTLV(pkcs8, ASN1_INTEGER, new byte[]{0x00}, false);
+        writeTLV(pkcs8, ASN1_SEQUENCE, algId.toByteArray(), false);      // AlgorithmIdentifier
+        writeTLV(pkcs8, ASN1_OCTET_STRING, ecPrivSeq.toByteArray(), false);
+        return wrapSequence(pkcs8.toByteArray());
+    }
+
+    /** SPKI ::= SEQUENCE { AlgorithmIdentifier(algId), subjectPublicKey }. */
+    private static byte[] wrapSequence(byte[] algId, byte[] bitString) throws IOException {
+        ByteArrayOutputStream spki = new ByteArrayOutputStream();
+        writeTLV(spki, ASN1_SEQUENCE, algId, false);      // AlgorithmIdentifier
+        writeTLV(spki, ASN1_BIT_STRING, bitString, false);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writeTLV(out, ASN1_SEQUENCE, spki.toByteArray(), false);
+        return out.toByteArray();
+    }
+
+    /** PKCS#8 ::= SEQUENCE { INTEGER 0, AlgorithmIdentifier, OCTET STRING }. */
+    private static byte[] wrapSequence(byte[] pkcs8Inner) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writeTLV(out, ASN1_SEQUENCE, pkcs8Inner, false);
+        return out.toByteArray();
+    }
+
+    /** DSA AlgorithmIdentifier ::= SEQUENCE { OID, Dss-Parms }. */
+    private static byte[] dsaAlgorithmIdentifier(byte[] p, byte[] q, byte[] g) throws IOException {
+        ByteArrayOutputStream params = new ByteArrayOutputStream();
+        writeTLV(params, ASN1_INTEGER, p, true);
+        writeTLV(params, ASN1_INTEGER, q, true);
+        writeTLV(params, ASN1_INTEGER, g, true);
+        ByteArrayOutputStream algId = new ByteArrayOutputStream();
+        writeTLV(algId, ASN1_OBJECT_IDENTIFIER, encodeOID(new int[]{1, 2, 840, 10040, 4, 1}), false);
+        writeTLV(algId, ASN1_SEQUENCE, params.toByteArray(), false);
+        return algId.toByteArray();
     }
 }

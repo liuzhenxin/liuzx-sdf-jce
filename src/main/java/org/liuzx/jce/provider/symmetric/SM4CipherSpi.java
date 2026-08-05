@@ -113,8 +113,10 @@ public class SM4CipherSpi extends CipherSpi {
             this.internalKeyInfo = (SDFSM4InternalKey) key;
         } else {
             this.rawKey = key.getEncoded();
-            if (rawKey == null || rawKey.length == 0) {
-                throw new InvalidKeyException("SM4 key encoding is empty. Use SDFSM4InternalKey for internal SDF keys.");
+            if (rawKey == null || rawKey.length != SM4_BLOCK_SIZE) {
+                throw new InvalidKeyException("SM4 key must be 16 bytes (got "
+                        + (rawKey == null ? 0 : rawKey.length)
+                        + "). Use SDFSM4InternalKey for internal SDF keys.");
             }
         }
 
@@ -175,9 +177,10 @@ public class SM4CipherSpi extends CipherSpi {
                     }
                     return Arrays.copyOf(out, outLen.getValue());
                 } else {
-                    if (!noPad && data.length % SM4_BLOCK_SIZE != 0) {
+                    if (blockMode && data.length % SM4_BLOCK_SIZE != 0) {
                         throw new IllegalBlockSizeException(
-                                "Input data length must be a multiple of block size for decryption.");
+                                mode + " requires input length to be a multiple of " + SM4_BLOCK_SIZE
+                                        + " for decryption.");
                     }
                     byte[] out = new byte[data.length + SM4_BLOCK_SIZE];
                     IntByReference outLen = new IntByReference(out.length);
