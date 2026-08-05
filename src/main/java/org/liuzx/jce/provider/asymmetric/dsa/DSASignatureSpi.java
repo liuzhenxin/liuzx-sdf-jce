@@ -50,7 +50,7 @@ public class DSASignatureSpi extends SignatureSpi {
             SDFLibrary sdf = SDFLibrary.getInstance();
             int rv = sdf.SDF_ExternalSign_DSA(s.getSessionHandle(), toByReference(privateKey.getKey()),
                     data, data.length, sig);
-            if (rv != 0) throw new SDFException("SDF_ExternalSign_DSA", rv);
+            s.checkResult(rv); if (rv != 0) throw new SDFException("SDF_ExternalSign_DSA", rv);
             // For DSA, q is at most 32 bytes (for 256-bit q in FIPS 186-4).
             // The SDF struct has 384-byte fields; we use only the significant portion.
             return ASN1Util.toDERSignature(sig.r, sig.s);

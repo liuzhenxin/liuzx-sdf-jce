@@ -135,12 +135,12 @@ public class SM4CipherSpi extends CipherSpi {
                 rv = SDFLibrary.getInstance().SDF_ImportKeyWithKEK(session.getSessionHandle(), SGD_SM4_ECB,
                         internalKeyInfo.getKeyIndex(), encryptedKey, internalKeyInfo.getKeyLengthBytes(), phKeyHandle);
             }
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException(isEmptyEncryptedKey(encryptedKey) ? "SDF_ImportKEK" : "SDF_ImportKeyWithKEK", rv);
             }
         } else {
             rv = SDFLibrary.getInstance().SDF_ImportKey(session.getSessionHandle(), rawKey, rawKey.length, phKeyHandle);
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException("SDF_ImportKey", rv);
             }
         }
@@ -172,7 +172,7 @@ public class SM4CipherSpi extends CipherSpi {
                     IntByReference outLen = new IntByReference(out.length);
                     int rv = SDFLibrary.getInstance().SDF_Encrypt(session.getSessionHandle(), hKeyHandle,
                             getAlgId(), iv, inputData, inputData.length, out, outLen);
-                    if (rv != 0) {
+                    session.checkResult(rv); if (rv != 0) {
                         throw new SDFException("SDF_Encrypt", rv);
                     }
                     return Arrays.copyOf(out, outLen.getValue());
@@ -186,7 +186,7 @@ public class SM4CipherSpi extends CipherSpi {
                     IntByReference outLen = new IntByReference(out.length);
                     int rv = SDFLibrary.getInstance().SDF_Decrypt(session.getSessionHandle(), hKeyHandle,
                             getAlgId(), iv, data, data.length, out, outLen);
-                    if (rv != 0) {
+                    session.checkResult(rv); if (rv != 0) {
                         throw new SDFException("SDF_Decrypt", rv);
                     }
                     byte[] decrypted = Arrays.copyOf(out, outLen.getValue());

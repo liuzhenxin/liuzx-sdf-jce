@@ -112,11 +112,11 @@ public class SM2CipherSpi extends CipherSpi {
             // Internal key encryption using SDF_InternalEncrypt_ECC
             if (internalPassword != null && internalPassword.length > 0) {
                 rv = sessionManager.getPrivateKeyAccessRight(session, internalKeyIndex, internalPassword);
-                if (rv != 0) throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
+                session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
             }
             try {
                 rv = sdf.SDF_InternalEncrypt_ECC(session.getSessionHandle(), internalKeyIndex, SGD_SM2_3, data, data.length, eccCipher);
-                if (rv != 0) throw new SDFException("SDF_InternalEncrypt_ECC", rv);
+                session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_InternalEncrypt_ECC", rv);
             } finally {
                 if (internalPassword != null && internalPassword.length > 0) {
                     sdf.SDF_ReleasePrivateKeyAccessRight(session.getSessionHandle(), internalKeyIndex);
@@ -124,7 +124,7 @@ public class SM2CipherSpi extends CipherSpi {
             }
         } else {
             rv = sdf.SDF_ExternalEncrypt_ECC(session.getSessionHandle(), SGD_SM2_3, sm2PublicKey.getEccPublicKey(), data, data.length, eccCipher);
-            if (rv != 0) throw new SDFException("SDF_ExternalEncrypt_ECC", rv);
+            session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_ExternalEncrypt_ECC", rv);
         }
         return ASN1Util.toASN1Ciphertext(eccCipher);
     }
@@ -140,13 +140,13 @@ public class SM2CipherSpi extends CipherSpi {
             char[] password = sm2PrivateKey.getPassword();
             if (password != null && password.length > 0) {
                 rv = sessionManager.getPrivateKeyAccessRight(session, sm2PrivateKey.getKeyIndex(), password);
-                if (rv != 0) {
+                session.checkResult(rv); if (rv != 0) {
                     throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
                 }
             }
             try {
                 rv = sdf.SDF_InternalDecrypt_ECC(session.getSessionHandle(), sm2PrivateKey.getKeyIndex(), SGD_SM2_3, eccCipher, decryptedData, decryptedLen);
-                if (rv != 0) {
+                session.checkResult(rv); if (rv != 0) {
                     throw new SDFException("SDF_InternalDecrypt_ECC", rv);
                 }
             } finally {
@@ -156,7 +156,7 @@ public class SM2CipherSpi extends CipherSpi {
             }
         } else {
             rv = sdf.SDF_ExternalDecrypt_ECC(session.getSessionHandle(), SGD_SM2_3, sm2PrivateKey.getEccPrivateKey(), eccCipher, decryptedData, decryptedLen);
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException("SDF_ExternalDecrypt_ECC", rv);
             }
         }

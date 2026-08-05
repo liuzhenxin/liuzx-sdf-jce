@@ -74,12 +74,12 @@ public class SDFHmacSpi extends MacSpi {
             SDFLibrary sdf = SDFLibrary.getInstance();
             Pointer[] phKey = new Pointer[1];
             int rv = sdf.SDF_ImportKey(session.getSessionHandle(), keyBytes, keyBytes.length, phKey);
-            if (rv != 0) throw new SDFException("SDF_ImportKey", rv);
+            session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_ImportKey", rv);
             try {
                 byte[] mac = new byte[macLength];
                 IntByReference macLen = new IntByReference(mac.length);
                 rv = sdf.SDF_HMAC(session.getSessionHandle(), phKey[0], algId, data, data.length, mac, macLen);
-                if (rv != 0) throw new SDFException("SDF_HMAC", rv);
+                session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_HMAC", rv);
                 byte[] result = new byte[macLen.getValue()];
                 System.arraycopy(mac, 0, result, 0, result.length);
                 return result;

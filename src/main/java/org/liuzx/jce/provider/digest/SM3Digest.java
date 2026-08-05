@@ -42,19 +42,19 @@ public class SM3Digest extends MessageDigestSpi {
 
             int rv = sdf.SDF_HashInit(session.getSessionHandle(), SGD_SM3,
                     (ECCrefPublicKey) null, (byte[]) null, 0);
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException("SDF_HashInit", rv);
             }
 
             rv = sdf.SDF_HashUpdate(session.getSessionHandle(), data, data.length);
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException("SDF_HashUpdate", rv);
             }
 
             byte[] hash = new byte[SM3_DIGEST_LENGTH];
             IntByReference hashLen = new IntByReference(SM3_DIGEST_LENGTH);
             rv = sdf.SDF_HashFinal(session.getSessionHandle(), hash, hashLen);
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException("SDF_HashFinal", rv);
             }
 

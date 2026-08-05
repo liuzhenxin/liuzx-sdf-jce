@@ -97,12 +97,12 @@ public class SDFMacSpi extends MacSpi {
                         rv = sdf.SDF_ImportKeyWithKEK(session.getSessionHandle(), 0x00000401,
                                 internalKeyInfo.getKeyIndex(), ek, internalKeyInfo.getKeyLengthBytes(), ph);
                     }
-                    if (rv != 0) throw new SDFException("ImportKey for MAC", rv);
+                    session.checkResult(rv); if (rv != 0) throw new SDFException("ImportKey for MAC", rv);
                     hKeyHandle = ph[0];
                 } else {
                     Pointer[] ph = new Pointer[1];
                     int rv = sdf.SDF_ImportKey(session.getSessionHandle(), keyBytes, keyBytes.length, ph);
-                    if (rv != 0) throw new SDFException("SDF_ImportKey", rv);
+                    session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_ImportKey", rv);
                     hKeyHandle = ph[0];
                 }
 
@@ -110,7 +110,7 @@ public class SDFMacSpi extends MacSpi {
                 IntByReference macLen = new IntByReference(mac.length);
                 int rv = sdf.SDF_CalculateMAC(session.getSessionHandle(), hKeyHandle, algId, iv, data,
                         data.length, mac, macLen);
-                if (rv != 0) throw new SDFException("SDF_CalculateMAC", rv);
+                session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_CalculateMAC", rv);
 
                 byte[] result = new byte[macLen.getValue()];
                 System.arraycopy(mac, 0, result, 0, result.length);

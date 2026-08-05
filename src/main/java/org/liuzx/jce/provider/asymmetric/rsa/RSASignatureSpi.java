@@ -94,7 +94,7 @@ public abstract class RSASignatureSpi extends SignatureSpi {
             // 1. 获取私钥访问权限 (如果需要) — 助手方法内部会清零临时 PIN 字节
             if (password != null && password.length > 0) {
                 int rv = sessionManager.getPrivateKeyAccessRight(session, keyIndex, password);
-                if (rv != 0) {
+                session.checkResult(rv); if (rv != 0) {
                     throw new SDFException("SDF_GetPrivateKeyAccessRight for RSA key", rv);
                 }
             }
@@ -106,7 +106,7 @@ public abstract class RSASignatureSpi extends SignatureSpi {
                 IntByReference signatureLength = new IntByReference(signature.length);
                 int rv = sdf.SDF_InternalPrivateKeyOperation_RSA(session.getSessionHandle(), keyIndex,
                         em, em.length, signature, signatureLength);
-                if (rv != 0) {
+                session.checkResult(rv); if (rv != 0) {
                     throw new SDFException("SDF_InternalPrivateKeyOperation_RSA", rv);
                 }
 

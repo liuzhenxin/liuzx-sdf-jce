@@ -80,13 +80,13 @@ public class SM2SignatureSpi extends SignatureSpi {
                 char[] password = sm2PrivateKey.getPassword();
                 if (password != null && password.length > 0) {
                     rv = sessionManager.getPrivateKeyAccessRight(session, sm2PrivateKey.getKeyIndex(), password);
-                    if (rv != 0) {
+                    session.checkResult(rv); if (rv != 0) {
                         throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
                     }
                 }
                 try {
                     rv = SDFLibrary.getInstance().SDF_InternalSign_ECC(session.getSessionHandle(), sm2PrivateKey.getKeyIndex(), sm3Digest, sm3Digest.length, eccSignature);
-                    if (rv != 0) {
+                    session.checkResult(rv); if (rv != 0) {
                         throw new SDFException("SDF_InternalSign_ECC", rv);
                     }
                 } finally {
@@ -97,7 +97,7 @@ public class SM2SignatureSpi extends SignatureSpi {
             } else {
                 // Corrected: Pass the SM2 signature algorithm ID
                 rv = SDFLibrary.getInstance().SDF_ExternalSign_ECC(session.getSessionHandle(), SGD_SM2_1, sm2PrivateKey.getEccPrivateKey(), sm3Digest, sm3Digest.length, eccSignature);
-                if (rv != 0) {
+                session.checkResult(rv); if (rv != 0) {
                     throw new SDFException("SDF_ExternalSign_ECC", rv);
                 }
             }
@@ -146,19 +146,19 @@ public class SM2SignatureSpi extends SignatureSpi {
         SDFLibrary sdf = SDFLibrary.getInstance();
         
         int rv = sdf.SDF_HashInit(session.getSessionHandle(), SGD_SM3, publicKey, DEFAULT_USER_ID, DEFAULT_USER_ID.length);
-        if (rv != 0) {
+        session.checkResult(rv); if (rv != 0) {
             throw new SDFException("SDF_HashInit", rv);
         }
 
         rv = sdf.SDF_HashUpdate(session.getSessionHandle(), message, message.length);
-        if (rv != 0) {
+        session.checkResult(rv); if (rv != 0) {
             throw new SDFException("SDF_HashUpdate", rv);
         }
 
         byte[] digest = new byte[32];
         IntByReference digestLen = new IntByReference(32);
         rv = sdf.SDF_HashFinal(session.getSessionHandle(), digest, digestLen);
-        if (rv != 0) {
+        session.checkResult(rv); if (rv != 0) {
             throw new SDFException("SDF_HashFinal", rv);
         }
         return digest;

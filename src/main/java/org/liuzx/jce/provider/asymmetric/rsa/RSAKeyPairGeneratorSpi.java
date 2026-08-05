@@ -71,7 +71,7 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
 
             // 调用SDF设备生成RSA密钥对
             int rv = sdf.SDF_GenerateKeyPair_RSA(session.getSessionHandle(), this.strength, refPublicKey, refPrivateKey);
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException("SDF_GenerateKeyPair_RSA", rv);
             }
 
@@ -128,10 +128,10 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
         // 设备密钥类型（SIGN/ENCRYPT）无法从 RSAInternalKeyGenParameterSpec 得知，故用 fallback。
         RSArefPublicKey.ByReference refPublicKey = new RSArefPublicKey.ByReference();
         int rv = sdf.SDF_ExportSignPublicKey_RSA(session.getSessionHandle(), keyIndex, refPublicKey);
-        if (rv != 0) {
+        session.checkResult(rv); if (rv != 0) {
             refPublicKey = new RSArefPublicKey.ByReference();
             rv = sdf.SDF_ExportEncPublicKey_RSA(session.getSessionHandle(), keyIndex, refPublicKey);
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException(
                         "SDF_ExportSignPublicKey_RSA / SDF_ExportEncPublicKey_RSA for key index " + keyIndex, rv);
             }

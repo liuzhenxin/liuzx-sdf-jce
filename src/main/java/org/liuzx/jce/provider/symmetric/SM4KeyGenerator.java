@@ -46,7 +46,7 @@ public class SM4KeyGenerator extends KeyGeneratorSpi {
             
             byte[] randomKey = new byte[SM4_KEY_SIZE_BYTES];
             int rv = sdf.SDF_GenerateRandom(session.getSessionHandle(), SM4_KEY_SIZE_BYTES, randomKey);
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException("SDF_GenerateRandom", rv);
             }
 

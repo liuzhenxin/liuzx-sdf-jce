@@ -50,13 +50,13 @@ public abstract class SDFDigest extends MessageDigestSpi {
         try (SDFSession session = sessionManager.borrowSession()) {
             SDFLibrary sdf = SDFLibrary.getInstance();
             int rv = sdf.SDF_HashInit(session.getSessionHandle(), algId, null, null, 0);
-            if (rv != 0) throw new SDFException("SDF_HashInit(alg=" + Integer.toHexString(algId) + ")", rv);
+            session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_HashInit(alg=" + Integer.toHexString(algId) + ")", rv);
             rv = sdf.SDF_HashUpdate(session.getSessionHandle(), data, data.length);
-            if (rv != 0) throw new SDFException("SDF_HashUpdate", rv);
+            session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_HashUpdate", rv);
             byte[] hash = new byte[digestLength];
             IntByReference hashLen = new IntByReference(hash.length);
             rv = sdf.SDF_HashFinal(session.getSessionHandle(), hash, hashLen);
-            if (rv != 0) throw new SDFException("SDF_HashFinal", rv);
+            session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_HashFinal", rv);
             if (hashLen.getValue() != digestLength) {
                 byte[] actual = new byte[hashLen.getValue()];
                 System.arraycopy(hash, 0, actual, 0, hashLen.getValue());

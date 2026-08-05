@@ -31,7 +31,7 @@ public class EdDSAKeyPairGenerator extends KeyPairGeneratorSpi {
             ECCrefPublicKey_EDDSA.ByReference pub = new ECCrefPublicKey_EDDSA.ByReference();
             ECCrefPrivateKey_EDDSA.ByReference pri = new ECCrefPrivateKey_EDDSA.ByReference();
             int rv = sdf.SDF_GenerateKeyPair_EDDSA(s.getSessionHandle(), SGD_EDDSA, keySize, pub, pri);
-            if (rv != 0) throw new SDFException("SDF_GenerateKeyPair_EDDSA", rv);
+            s.checkResult(rv); if (rv != 0) throw new SDFException("SDF_GenerateKeyPair_EDDSA", rv);
             return new KeyPair(new EdDSAPublicKey(pub), new EdDSAPrivateKey(pri));
         }
     }

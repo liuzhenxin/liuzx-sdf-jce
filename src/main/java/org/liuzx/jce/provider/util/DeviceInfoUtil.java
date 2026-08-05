@@ -22,7 +22,7 @@ public final class DeviceInfoUtil {
         try (SDFSession session = mgr.borrowSession()) {
             DEVICEINFO.ByReference info = new DEVICEINFO.ByReference();
             int rv = SDFLibrary.getInstance().SDF_GetDeviceInfo(session.getSessionHandle(), info);
-            if (rv != 0) throw new SDFException("SDF_GetDeviceInfo", rv);
+            session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_GetDeviceInfo", rv);
             return new DeviceInfo(info);
         }
     }

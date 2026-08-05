@@ -30,7 +30,7 @@ public class DSAKeyPairGenerator extends KeyPairGeneratorSpi {
             DSArefPublicKey.ByReference pub = new DSArefPublicKey.ByReference();
             DSArefPrivateKey.ByReference pri = new DSArefPrivateKey.ByReference();
             int rv = sdf.SDF_GenerateKeyPair_DSA(s.getSessionHandle(), keySize, pub, pri);
-            if (rv != 0) throw new SDFException("SDF_GenerateKeyPair_DSA", rv);
+            s.checkResult(rv); if (rv != 0) throw new SDFException("SDF_GenerateKeyPair_DSA", rv);
             return new KeyPair(new DSAPublicKey(pub), new DSAPrivateKey(pri));
         }
     }

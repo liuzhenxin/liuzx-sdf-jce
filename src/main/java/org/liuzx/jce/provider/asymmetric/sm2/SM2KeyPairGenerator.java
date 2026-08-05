@@ -62,7 +62,7 @@ public class SM2KeyPairGenerator extends KeyPairGeneratorSpi {
             ECCrefPublicKey.ByReference pubKeyRef = new ECCrefPublicKey.ByReference();
             ECCrefPrivateKey.ByReference priKeyRef = new ECCrefPrivateKey.ByReference();
             int rv = sdf.SDF_GenerateKeyPair_ECC(session.getSessionHandle(), SGD_SM2_1, SM2_KEY_BITS, pubKeyRef, priKeyRef);
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException("SDF_GenerateKeyPair_ECC (external)", rv);
             }
             return new KeyPair(new SM2PublicKey(pubKeyRef), new SM2PrivateKey(priKeyRef, pubKeyRef));
@@ -87,7 +87,7 @@ public class SM2KeyPairGenerator extends KeyPairGeneratorSpi {
                 rv = sdf.SDF_ExportSignPublicKey_ECC(session.getSessionHandle(), keyIndex, pubKeyRef);
             }
 
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 throw new SDFException(functionName, rv);
             }
 

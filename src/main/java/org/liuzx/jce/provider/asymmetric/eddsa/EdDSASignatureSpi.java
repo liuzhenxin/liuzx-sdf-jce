@@ -50,7 +50,7 @@ public class EdDSASignatureSpi extends SignatureSpi {
             SDFLibrary sdf = SDFLibrary.getInstance();
             int rv = sdf.SDF_ExternalSign_ECC_EDDSA(s.getSessionHandle(), SGD_EDDSA_1,
                     toByReference(privateKey.getKey()), data, data.length, sig);
-            if (rv != 0) throw new SDFException("SDF_ExternalSign_ECC_EDDSA", rv);
+            s.checkResult(rv); if (rv != 0) throw new SDFException("SDF_ExternalSign_ECC_EDDSA", rv);
             return ASN1Util.toDERSignature(sig.r, sig.s);
         } catch (IOException e) {
             throw new SignatureException("DER encoding failed", e);

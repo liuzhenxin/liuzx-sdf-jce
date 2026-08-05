@@ -128,13 +128,13 @@ public class RSACipherSpi extends CipherSpi {
             // Encryption using internal key index (public-key operation on-device)
             rv = sdf.SDF_InternalPublicKeyOperation_RSA(session.getSessionHandle(),
                     internalKeyIndex, data, data.length, output, outputLen);
-            if (rv != 0) throw new SDFException("SDF_InternalPublicKeyOperation_RSA", rv);
+            session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_InternalPublicKeyOperation_RSA", rv);
         } else {
             // Encryption using external public key
             RSArefPublicKey.ByReference refPubKey = convertToSdfPublicKey(publicKey);
             rv = sdf.SDF_ExternalPublicKeyOperation_RSA(session.getSessionHandle(),
                     refPubKey, data, data.length, output, outputLen);
-            if (rv != 0) throw new SDFException("SDF_ExternalPublicKeyOperation_RSA", rv);
+            session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_ExternalPublicKeyOperation_RSA", rv);
         }
 
         byte[] result = new byte[outputLen.getValue()];
@@ -153,12 +153,12 @@ public class RSACipherSpi extends CipherSpi {
             // Decrypt with internal private key (on-device)
             if (internalPassword != null && internalPassword.length > 0) {
                 rv = sessionManager.getPrivateKeyAccessRight(session, internalKeyIndex, internalPassword);
-                if (rv != 0) throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
+                session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
             }
             try {
                 rv = sdf.SDF_InternalPrivateKeyOperation_RSA(session.getSessionHandle(),
                         internalKeyIndex, data, data.length, output, outputLen);
-                if (rv != 0) throw new SDFException("SDF_InternalPrivateKeyOperation_RSA", rv);
+                session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_InternalPrivateKeyOperation_RSA", rv);
             } finally {
                 if (internalPassword != null && internalPassword.length > 0) {
                     sdf.SDF_ReleasePrivateKeyAccessRight(session.getSessionHandle(), internalKeyIndex);
@@ -169,7 +169,7 @@ public class RSACipherSpi extends CipherSpi {
             RSArefPrivateKey.ByReference refPrivKey = convertToSdfPrivateKey(privateKey);
             rv = sdf.SDF_ExternalPrivateKeyOperation_RSA(session.getSessionHandle(),
                     refPrivKey, data, data.length, output, outputLen);
-            if (rv != 0) throw new SDFException("SDF_ExternalPrivateKeyOperation_RSA", rv);
+            session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_ExternalPrivateKeyOperation_RSA", rv);
         }
 
         byte[] result = new byte[outputLen.getValue()];

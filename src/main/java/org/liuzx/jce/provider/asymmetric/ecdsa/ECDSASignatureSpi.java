@@ -54,7 +54,7 @@ public class ECDSASignatureSpi extends SignatureSpi {
             ECCSignature_ECDSA.ByReference sig = new ECCSignature_ECDSA.ByReference();
             int rv = sdf.SDF_ExternalSign_ECC_ECDSA(s.getSessionHandle(), SGD_ECDSA_1,
                     toByReference(privateKey.getKey()), data, data.length, sig);
-            if (rv != 0) throw new SDFException("SDF_ExternalSign_ECC_ECDSA", rv);
+            s.checkResult(rv); if (rv != 0) throw new SDFException("SDF_ExternalSign_ECC_ECDSA", rv);
             return ASN1Util.toDERSignature(sig.r, sig.s);
         } catch (IOException e) {
             throw new SignatureException("DER encoding failed", e);

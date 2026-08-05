@@ -94,7 +94,7 @@ public class SM2KeyAgreementSpi extends KeyAgreementSpi {
             int rv = sdf.SDF_GenerateAgreementDataAndKeyWithECC(session.getSessionHandle(),
                     keyIndex, KEY_SIZE * 8, userId, userId.length, userId, userId.length,
                     null, tmpPubRef, peerPubRef, peerPubRef, phKey);
-            if (rv != 0) {
+            session.checkResult(rv); if (rv != 0) {
                 // 不要在这里归还会话 — 交给下方 catch 统一归还一次，避免双归还会话池
                 throw new SDFException("SDF_GenerateAgreementDataAndKeyWithECC", rv);
             }
