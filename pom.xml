@@ -103,6 +103,47 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <!--
+                4. Sign the dependency jars copied to target/lib.
+                JCE 框架(JarVerifier)不仅验证 provider 主 jar，还会沿 manifest 的
+                Class-Path 逐个验证依赖 jar。若依赖 jar 未签名，运行时 Cipher/Mac/
+                KeyGenerator 会抛 "JCE cannot authenticate the provider LiuZX"。
+                故用同一证书(jarsigner 每次只能签一个 jar)逐个签名。
+                注意：若调整依赖版本，需同步更新这里的文件名。
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>sign-libs</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <signjar jar="${project.build.directory}/lib/jna-5.10.0.jar"
+                                         alias="dayou"
+                                         storepass="123456"
+                                         keypass="123456"
+                                         keystore="${project.basedir}/keystore.jks"
+                                         tsaurl="http://timestamp.digicert.com"
+                                         lazy="true"/>
+                                <signjar jar="${project.build.directory}/lib/gson-2.9.0.jar"
+                                         alias="dayou"
+                                         storepass="123456"
+                                         keypass="123456"
+                                         keystore="${project.basedir}/keystore.jks"
+                                         tsaurl="http://timestamp.digicert.com"
+                                         lazy="true"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
