@@ -6,7 +6,7 @@
 
     <groupId>org.liuzx</groupId>
     <artifactId>liuzx-sdf-jce</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.1-SNAPSHOT</version>
 
     <name>liuzx-sdf-jce</name>
     <description>GM/T 0018-2012 SDF hardware Java Cryptography Extension (JCE) Provider.
