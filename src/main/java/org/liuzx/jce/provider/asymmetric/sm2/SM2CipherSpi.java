@@ -52,6 +52,12 @@ public class SM2CipherSpi extends CipherSpi {
             if (key instanceof SM2PublicKey) {
                 this.sm2PublicKey = (SM2PublicKey) key;
                 this.sm2PrivateKey = null;
+                // HSM 导出的内部公钥（isInternal=true）必须走内部加密（SDF_InternalEncrypt_ECC），
+                // 否则外部加密用导出公钥，内部解密用设备私钥，密钥不匹配导致 0x0100000C。
+                // 注意：外部密钥的 getKeyIndex() 会抛异常，须先用 isInternalKey() 判断。
+                if (sm2PublicKey.isInternalKey()) {
+                    this.internalKeyIndex = sm2PublicKey.getKeyIndex();
+                }
             } else if (key instanceof SM2PrivateKey && ((SM2PrivateKey) key).isInternalKey()) {
                 SM2PrivateKey pk = (SM2PrivateKey) key;
                 this.sm2PublicKey = new SM2PublicKey(pk.getKeyIndex(), pk.getEccPublicKey());
@@ -126,6 +132,9 @@ public class SM2CipherSpi extends CipherSpi {
             rv = sdf.SDF_ExternalEncrypt_ECC(session.getSessionHandle(), SGD_SM2_3, sm2PublicKey.getEccPublicKey(), data, data.length, eccCipher);
             session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_ExternalEncrypt_ECC", rv);
         }
+        // ByReference 结构由原生库写入的是原生内存，必须 read() 同步回 Java 字段，
+        // 否则 toASN1Ciphertext 读到的是初始零值，产出无效密文导致解密失败(0x0100000C)。
+        eccCipher.read();
         return ASN1Util.toASN1Ciphertext(eccCipher);
     }
 
