@@ -30,3 +30,6 @@ Thumbs.db
 keystore.jks
 *.jks
 liuzx-jce.properties
+
+# Claude Code local settings (个人本地配置，不提交)
+.claude/settings.local.json
