@@ -132,7 +132,7 @@
                             <alias>dayou</alias>
                             <storepass>123456</storepass>
                             <keypass>123456</keypass>
-                            <tsa>http://timestamp.digicert.com</tsa>
+                            <tsa>http://timestamp.sectigo.com</tsa>
                         </configuration>
                     </execution>
                 </executions>
@@ -164,14 +164,14 @@
                                          storepass="123456"
                                          keypass="123456"
                                          keystore="${project.basedir}/keystore.jks"
-                                         tsaurl="http://timestamp.digicert.com"
+                                         tsaurl="http://timestamp.sectigo.com"
                                          lazy="true"/>
                                 <signjar jar="${project.build.directory}/lib/gson-2.9.0.jar"
                                          alias="dayou"
                                          storepass="123456"
                                          keypass="123456"
                                          keystore="${project.basedir}/keystore.jks"
-                                         tsaurl="http://timestamp.digicert.com"
+                                         tsaurl="http://timestamp.sectigo.com"
                                          lazy="true"/>
                             </target>
                         </configuration>
