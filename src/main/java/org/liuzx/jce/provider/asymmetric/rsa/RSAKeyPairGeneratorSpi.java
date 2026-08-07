@@ -107,14 +107,24 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
 
     private KeyPair loadInternalKeyPair() {
         int keyIndex = internalKeySpec.getKeyIndex();
-        
-        try (SDFSession session = sessionManager.borrowSession()) {
-            // 1. 从SDF设备导出公钥
-            RSAPublicKey publicKey = exportRSAPublicKey(session, keyIndex);
-            
-            // 2. 创建私钥引用，并将公钥传入
+
+        try {
+            RSAPublicKey publicKey;
+            if (internalKeySpec.hasExternalPublicKey()) {
+                // 外部注入了公钥：跳过 SDF 导出。
+                // 数盾 SDK 导出函数按 Lite 结构仅支持到 2048 位，4096 位密钥导出会越界崩溃，
+                // 必须由调用方提供该索引对应的公钥（见 RSAInternalKeyGenParameterSpec）。
+                publicKey = internalKeySpec.getPublicKey();
+            } else {
+                try (SDFSession session = sessionManager.borrowSession()) {
+                    // 从 SDF 设备导出公钥
+                    publicKey = exportRSAPublicKey(session, keyIndex);
+                }
+            }
+
+            // 创建私钥引用，并将公钥传入
             PrivateKey privateKey = new SDFRSAPrivateKey(keyIndex, null, publicKey);
-            
+
             return new KeyPair(publicKey, privateKey);
         } catch (Exception e) {
             throw new RuntimeException("Failed to load internal RSA key pair from SDF device", e);
