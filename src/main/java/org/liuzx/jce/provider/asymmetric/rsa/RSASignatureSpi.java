@@ -2,6 +2,7 @@ package org.liuzx.jce.provider.asymmetric.rsa;
 
 import com.sun.jna.ptr.IntByReference;
 import org.liuzx.jce.jna.SDFLibrary;
+import org.liuzx.jce.jna.structure.RSArefPrivateKey;
 import org.liuzx.jce.provider.exception.SDFException;
 import org.liuzx.jce.provider.session.SDFSession;
 import org.liuzx.jce.provider.session.SDFSessionManager;
@@ -20,15 +21,19 @@ import java.security.SignatureSpi;
 import java.security.interfaces.RSAPublicKey;
 
 /**
- * 使用SDF设备内部RSA密钥进行签名的SignatureSpi实现。
- * 该实现遵循项目现有的架构模式，直接与SDFSessionManager交互。
+ * 使用 SDF 设备进行 RSA 签名的 SignatureSpi 实现。
+ *
+ * <p>签名流程与密钥类型无关：软件侧构造 EMSA-PKCS1-v1_5 编码块，再交给设备做裸 RSA
+ * 私钥运算——内部密钥用 {@code SDF_InternalPrivateKeyOperation_RSA}（按索引），
+ * 外部密钥用 {@code SDF_ExternalPrivateKeyOperation_RSA}（传入 CRT 参数结构体）。
+ * 验签在软件中完成。
  */
 public abstract class RSASignatureSpi extends SignatureSpi {
 
     private final SDFSessionManager sessionManager;
     private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
     private MessageDigest digest;
-    private SDFRSAPrivateKey internalPrivateKey;
+    private SDFRSAPrivateKey sdfPrivateKey;
     private RSAPublicKey publicKey;
 
     protected RSASignatureSpi(MessageDigest digest) {
@@ -42,20 +47,18 @@ public abstract class RSASignatureSpi extends SignatureSpi {
             throw new InvalidKeyException("Expected an RSAPublicKey for verification.");
         }
         this.publicKey = (RSAPublicKey) publicKey;
-        this.internalPrivateKey = null;
+        this.sdfPrivateKey = null;
         this.buffer.reset();
     }
 
     @Override
     protected void engineInitSign(PrivateKey privateKey) throws InvalidKeyException {
         if (!(privateKey instanceof SDFRSAPrivateKey)) {
-            throw new InvalidKeyException("Expected an SDFRSAPrivateKey for internal signing.");
+            throw new InvalidKeyException("Expected an SDFRSAPrivateKey for signing.");
         }
-        SDFRSAPrivateKey sdfKey = (SDFRSAPrivateKey) privateKey;
-        if (!sdfKey.isInternalKey()) {
-            throw new InvalidKeyException("Only internal SDFRSAPrivateKey is supported for signing.");
-        }
-        this.internalPrivateKey = sdfKey;
+        // 支持内部（硬件索索引）与外部（JVM 内存 CRT 参数）两种密钥，
+        // 签名都在设备上以裸 RSA 私钥运算完成。
+        this.sdfPrivateKey = (SDFRSAPrivateKey) privateKey;
         this.publicKey = null;
         this.buffer.reset();
     }
@@ -72,10 +75,10 @@ public abstract class RSASignatureSpi extends SignatureSpi {
 
     @Override
     protected byte[] engineSign() throws SignatureException {
-        if (internalPrivateKey == null) {
+        if (sdfPrivateKey == null) {
             throw new SignatureException("Signature not initialized for signing.");
         }
-        
+
         byte[] dataToSign = buffer.toByteArray();
         buffer.reset();
 
@@ -84,45 +87,52 @@ public abstract class RSASignatureSpi extends SignatureSpi {
         // 且不依赖设备对 SDF_InternalSign_RSA 入参（原始消息 vs 预摘要）的语义。
         byte[] hash = digest.digest(dataToSign);
         byte[] digestInfo = digestInfoPrefix(digest.getAlgorithm());
-        int keySizeBytes = internalPrivateKey.getModulus().bitLength() / 8;
+        int keySizeBytes = sdfPrivateKey.getModulus().bitLength() / 8;
+        byte[] em = pkcs1V15Encode(hash, digestInfo, keySizeBytes);
 
         try (SDFSession session = sessionManager.borrowSession()) {
-            SDFLibrary sdf = sessionManager.getSdfLibrary(); // Corrected: get library from manager
-            int keyIndex = internalPrivateKey.getKeyIndex();
-            char[] password = internalPrivateKey.getPassword();
+            SDFLibrary sdf = sessionManager.getSdfLibrary();
+            byte[] signature = new byte[keySizeBytes];
+            IntByReference signatureLength = new IntByReference(signature.length);
+            int rv;
 
-            // 1. 获取私钥访问权限 (如果需要) — 助手方法内部会清零临时 PIN 字节
-            if (password != null && password.length > 0) {
-                int rv = sessionManager.getPrivateKeyAccessRight(session, keyIndex, password);
-                session.checkResult(rv); if (rv != 0) {
-                    throw new SDFException("SDF_GetPrivateKeyAccessRight for RSA key", rv);
-                }
-            }
-
-            try {
-                // 2. 构造 EMSA-PKCS1-v1_5 编码块并在设备上执行裸私钥运算
-                byte[] em = pkcs1V15Encode(hash, digestInfo, keySizeBytes);
-                byte[] signature = new byte[keySizeBytes];
-                IntByReference signatureLength = new IntByReference(signature.length);
-                int rv = sdf.SDF_InternalPrivateKeyOperation_RSA(session.getSessionHandle(), keyIndex,
-                        em, em.length, signature, signatureLength);
-                session.checkResult(rv); if (rv != 0) {
-                    throw new SDFException("SDF_InternalPrivateKeyOperation_RSA", rv);
-                }
-
-                byte[] result = new byte[signatureLength.getValue()];
-                System.arraycopy(signature, 0, result, 0, result.length);
-                return result;
-
-            } finally {
-                // 3. 释放私钥访问权限 (如果之前获取过)
+            if (sdfPrivateKey.isInternalKey()) {
+                // 内部密钥：按索引在设备上做裸私钥运算，先获取私钥访问权限（若需 PIN）。
+                int keyIndex = sdfPrivateKey.getKeyIndex();
+                char[] password = sdfPrivateKey.getPassword();
                 if (password != null && password.length > 0) {
-                    sdf.SDF_ReleasePrivateKeyAccessRight(session.getSessionHandle(), keyIndex);
+                    rv = sessionManager.getPrivateKeyAccessRight(session, keyIndex, password);
+                    session.checkResult(rv); if (rv != 0) {
+                        throw new SDFException("SDF_GetPrivateKeyAccessRight for RSA key", rv);
+                    }
+                }
+                try {
+                    rv = sdf.SDF_InternalPrivateKeyOperation_RSA(session.getSessionHandle(), keyIndex,
+                            em, em.length, signature, signatureLength);
+                    session.checkResult(rv); if (rv != 0) {
+                        throw new SDFException("SDF_InternalPrivateKeyOperation_RSA", rv);
+                    }
+                } finally {
+                    if (password != null && password.length > 0) {
+                        sdf.SDF_ReleasePrivateKeyAccessRight(session.getSessionHandle(), keyIndex);
+                    }
+                }
+            } else {
+                // 外部密钥：按数盾变长布局构造 RSArefPrivateKey（CRT 参数），设备做裸私钥运算。
+                // 与外部解密共用同一转换（见 RSAKeyConverter），两者均已实测通过。
+                rv = sdf.SDF_ExternalPrivateKeyOperation_RSA(session.getSessionHandle(),
+                        RSAKeyConverter.toSdfPrivateKey(sdfPrivateKey), em, em.length, signature, signatureLength);
+                session.checkResult(rv); if (rv != 0) {
+                    throw new SDFException("SDF_ExternalPrivateKeyOperation_RSA", rv);
                 }
             }
+
+            byte[] result = new byte[signatureLength.getValue()];
+            System.arraycopy(signature, 0, result, 0, result.length);
+            return result;
         } catch (Exception e) {
             if (e instanceof SignatureException) throw (SignatureException) e;
-            throw new SignatureException("Failed to sign using internal SDF RSA key.", e);
+            throw new SignatureException("Failed to sign using SDF RSA key.", e);
         }
     }
 

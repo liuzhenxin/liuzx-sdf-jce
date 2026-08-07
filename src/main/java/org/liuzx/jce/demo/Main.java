@@ -58,6 +58,7 @@ public class Main {
                     case "11": testExternalRsaKeyGen(); break;
                     case "12": testInternalRsaCipher(); break;
                     case "13": testExternalRsaCipher(); break;
+                    case "14": testExternalRsaKeyGenFull(); break;
                     case "0": logger.info(I18n.get("app.exiting")); return;
                     default: logger.warn(I18n.get("app.invalid_choice") + ": {}", choice); break;
                 }
@@ -96,6 +97,7 @@ public class Main {
         System.out.println("11. RSA External Key Gen");
         System.out.println("12. RSA Internal Encrypt/Decrypt");
         System.out.println("13. RSA External Encrypt/Decrypt");
+        System.out.println("14. RSA External KeyGen + Sign/Verify/Encrypt/Decrypt");
         System.out.println("---------------------------------");
         System.out.println("0. " + I18n.get("menu.0"));
     }
@@ -187,9 +189,31 @@ public class Main {
     private static void testExternalRsaCipher() throws Exception {
         logger.info("--- RSA External Key Encrypt/Decrypt Test ---");
         KeyPair keyPair = generateExternalKeyPair("RSA", 2048);
-        
+
         // Encrypt with external public key, Decrypt with external private key
         performEncryptDecrypt(keyPair.getPublic(), keyPair.getPrivate(), "Hello RSA External Cipher", "RSA/ECB/PKCS1Padding");
+    }
+
+    private static void testExternalRsaKeyGenFull() throws Exception {
+        logger.info("--- RSA External KeyGen + Sign/Verify/Encrypt/Decrypt Test ---");
+        System.out.print("Enter RSA key size (2048/4096): ");
+        String sizeStr = scanner.nextLine();
+        int keySize = sizeStr.trim().isEmpty() ? 2048 : Integer.parseInt(sizeStr.trim());
+        if (keySize != 2048 && keySize != 4096) {
+            logger.error("Unsupported RSA key size: {}", keySize);
+            return;
+        }
+
+        KeyPair keyPair = generateExternalKeyPair("RSA", keySize);
+        logger.info("Generated {} RSA external key pair via SDF.", keySize);
+
+        // 外部签名在设备上以裸私钥运算完成（软件构造 EMSA 块），验签在软件中完成
+        performSignVerify(keyPair.getPublic(), keyPair.getPrivate(),
+                "Test data for external RSA " + keySize + " signing", "SHA256withRSA");
+
+        // 外部加密/解密往返
+        performEncryptDecrypt(keyPair.getPublic(), keyPair.getPrivate(),
+                "Hello RSA External Cipher " + keySize, "RSA/ECB/PKCS1Padding");
     }
 
     // --- Symmetric & Hash Tests ---
@@ -299,13 +323,11 @@ public class Main {
         kpg.initialize(keySize);
         KeyPair keyPair = kpg.generateKeyPair();
         logger.info(I18n.get("msg.kpg.external.generated"));
-        // For RSA, encoded might be null if not implemented, but we implemented it.
-        // For SM2, we also implemented it.
+        // 公钥可打印；私钥/密钥材料绝不输出到日志（见 CLAUDE.md 安全约束）。
         try {
             logger.info("Public Key (Hex): {}", HexUtil.toHexString(keyPair.getPublic().getEncoded()));
-            logger.info("Private Key (Hex): {}", HexUtil.toHexString(keyPair.getPrivate().getEncoded()));
         } catch (Exception e) {
-            logger.warn("Could not print encoded keys (maybe not supported for this key type): " + e.getMessage());
+            logger.warn("Could not print encoded public key (maybe not supported for this key type): " + e.getMessage());
         }
         return keyPair;
     }
