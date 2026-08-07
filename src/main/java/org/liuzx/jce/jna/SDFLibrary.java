@@ -130,9 +130,12 @@ public interface SDFLibrary extends Library {
             byte[] pucData, int uiDataLength, ECCCipher.ByReference pucEncData);
     int SDF_ExternalDecrypt_ECC(Pointer hSessionHandle, int uiAlgID, ECCrefPrivateKey pucPrivateKey,
             ECCCipher pucEncData, byte[] pucData, IntByReference puiDataLength);
-    int SDF_InternalEncrypt_ECC(Pointer hSessionHandle, int uiKeyIndex, int uiAlgID,
+    // 实测数盾库内部函数不带 uiAlgID 参数（尽管 libsdf.h 两个变体都列了它）：
+    //   多传 algID 会被库当作 data/密文 指针解引用，崩溃地址=algID(0x20800)。
+    //   签名实为 (hSessionHandle, uiKeyIndex, ...) 5 参。
+    int SDF_InternalEncrypt_ECC(Pointer hSessionHandle, int uiKeyIndex,
             byte[] pucData, int uiDataLength, ECCCipher.ByReference pucEncData);
-    int SDF_InternalDecrypt_ECC(Pointer hSessionHandle, int uiKeyIndex, int uiAlgID,
+    int SDF_InternalDecrypt_ECC(Pointer hSessionHandle, int uiKeyIndex,
             ECCCipher pucEncData, byte[] pucData, IntByReference puiDataLength);
 
     // =========================================================================

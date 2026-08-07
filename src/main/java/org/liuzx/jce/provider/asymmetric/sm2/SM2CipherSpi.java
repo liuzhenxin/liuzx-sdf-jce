@@ -115,7 +115,7 @@ public class SM2CipherSpi extends CipherSpi {
                 session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_GetPrivateKeyAccessRight", rv);
             }
             try {
-                rv = sdf.SDF_InternalEncrypt_ECC(session.getSessionHandle(), internalKeyIndex, SGD_SM2_3, data, data.length, eccCipher);
+                rv = sdf.SDF_InternalEncrypt_ECC(session.getSessionHandle(), internalKeyIndex, data, data.length, eccCipher);
                 session.checkResult(rv); if (rv != 0) throw new SDFException("SDF_InternalEncrypt_ECC", rv);
             } finally {
                 if (internalPassword != null && internalPassword.length > 0) {
@@ -133,7 +133,9 @@ public class SM2CipherSpi extends CipherSpi {
         SDFLibrary sdf = SDFLibrary.getInstance();
         ECCCipher eccCipher = ASN1Util.fromASN1Ciphertext(data);
         byte[] decryptedData = new byte[eccCipher.L];
-        IntByReference decryptedLen = new IntByReference();
+        // puiPlainTextLength 是 in/out 参数：入参=输出缓冲区容量，出参=实际明文长度。
+        // 必须初始化为缓冲区容量，否则原生库按容量 0 写入导致越界崩溃（SEGV）。
+        IntByReference decryptedLen = new IntByReference(decryptedData.length);
         int rv;
 
         if (sm2PrivateKey.isInternalKey()) {
@@ -145,7 +147,7 @@ public class SM2CipherSpi extends CipherSpi {
                 }
             }
             try {
-                rv = sdf.SDF_InternalDecrypt_ECC(session.getSessionHandle(), sm2PrivateKey.getKeyIndex(), SGD_SM2_3, eccCipher, decryptedData, decryptedLen);
+                rv = sdf.SDF_InternalDecrypt_ECC(session.getSessionHandle(), sm2PrivateKey.getKeyIndex(), eccCipher, decryptedData, decryptedLen);
                 session.checkResult(rv); if (rv != 0) {
                     throw new SDFException("SDF_InternalDecrypt_ECC", rv);
                 }
