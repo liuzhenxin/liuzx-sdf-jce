@@ -44,7 +44,7 @@
 </head>
 <body>
 <div class="container">
-  <span class="badge">v1.0.0 · GM/T 0018-2012</span>
+  <span class="badge">v1.1.1 · GM/T 0018-2012</span>
   <h1>LiuZX SDF JCE Provider</h1>
   <p class="subtitle">基于 GM/T 0018-2012《密码设备应用接口规范》的 Java JCE Provider，通过 JNA 调用 SDF 密码设备（加密机 / UKey），以标准 JCE API 提供国密与主流非对称算法能力。</p>
 
@@ -95,7 +95,7 @@ byte[] signature = signer.sign();</pre>
     <h2>构建</h2>
     <pre>mvn clean package        # 构建并自动用 keystore.jks 签名 JAR
 mvn install              # 安装到本地 Maven 仓库</pre>
-    <p class="muted">构建产物 <code>target/liuzx-sdf-jce-1.0.0.jar</code>（已签名，满足 JCE Provider 安全要求）。</p>
+    <p class="muted">构建产物 <code>target/liuzx-sdf-jce-1.1.1.jar</code>（已签名，满足 JCE Provider 安全要求）。</p>
   </div>
 
   <div class="card">
@@ -105,6 +105,15 @@ SecretKey key = SDFSM4Keys.internalKey(1);
 Cipher cipher = Cipher.getInstance("SM4/CBC/PKCS5Padding", "LiuZX");
 cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
 byte[] encrypted = cipher.doFinal(plainBytes);</pre>
+  </div>
+
+  <div class="card">
+    <h2>版本说明</h2>
+    <ul>
+      <li><b>1.1.1</b>（2026-08-07）：RSA 内部密钥支持 4096 位；修正数盾内部 SM2 加解密 JNA 绑定；测试参数化索引与 PIN。</li>
+      <li><b>1.1.0</b>（2026-08-07）：Provider 主名改为 <code>LiuZX</code>，新增 <code>LegacyLiuZXProvider</code> 兼容旧名 <code>liuzx</code>；会话池自愈；签名 JCE 依赖 jar；Maven Central 发布。</li>
+      <li><b>1.0.0</b>（2026-08-05）：初始发行。</li>
+    </ul>
   </div>
 
   <div class="footer">

@@ -27,6 +27,30 @@
 
 ---
 
+## 📋 版本说明
+
+**当前版本: 1.1.1**（2026-08-07）
+
+### 1.1.1 (2026-08-07)
+
+- **RSA 内部密钥支持 4096 位**：通过外部公钥注入 + Ex 结构体实现，内部私钥不离开硬件。
+- **修正数盾内部 SM2 加解密**：JNA 绑定修正，内部密钥 SM2 加密走内部路径，`read()` 同步结构体。
+- **测试完善**：内部密钥测试参数化索引与 PIN，修正 SM3 测试向量。
+
+### 1.1.0 (2026-08-07)
+
+- **Provider 主名改为 `LiuZX`**，新增 `LegacyLiuZXProvider` 兼容旧名 `liuzx`。
+- **会话池自愈**：HSM 会话失效后自动重建，覆盖 HSM 未就绪错误（`0x01000403`）。
+- **修复运行时 JCE 认证失败**：签名 JCE 依赖 jar。
+- 配置 Maven Central 发布流程，新增发布清单 `RELEASE.md`。
+- 新增 GitHub Pages 项目介绍页。
+
+### 1.0.0 (2026-08-05) — 初始发行
+
+- 基础版本：SM2/SM3/SM4/RSA/ECDSA/EdDSA/DSA、内部/外部密钥、硬件随机数、SM2 密钥协商、多线程压力测试等核心能力。
+
+---
+
 ## 🚀 构建与运行
 
 ### 1. 构建
@@ -40,7 +64,7 @@ mvn clean package
 该命令会完成以下操作：
 1. 编译所有Java源代码。
 2. 将所有依赖项（如 JNA, Gson）复制到 `target/lib` 目录。
-3. 将本项目打包成 `target/liuzx-sdf-jce-1.1.0-SNAPSHOT.jar`。
+3. 将本项目打包成 `target/liuzx-sdf-jce-1.1.1.jar`。
 4. **（重要）** 使用 `keystore.jks` 对主JAR包进行签名，以满足JCE Provider的安全要求。
 
 ### 2. 运行演示程序
@@ -94,12 +118,12 @@ mvn clean package
 # 使用 liuzx-nas 工程当前携带的数盾 SDF 动态库
 # （主 JAR 不含 Class-Path，依赖放在 target/lib 下，需用 -cp 指定）
 java -Dliuzx.sdf.vendor=Shudun \
-  -cp target/liuzx-sdf-jce-1.1.0-SNAPSHOT.jar:target/lib/* \
+  -cp target/liuzx-sdf-jce-1.1.1.jar:target/lib/* \
   org.liuzx.jce.demo.Main
 
 # 直接指定某个动态库路径，优先级高于 vendor 配置
 java -Dliuzx.sdf.library.path=/usr/lib64/libsdhsmcrypto.so \
-  -cp target/liuzx-sdf-jce-1.1.0-SNAPSHOT.jar:target/lib/* \
+  -cp target/liuzx-sdf-jce-1.1.1.jar:target/lib/* \
   org.liuzx.jce.demo.Main
 ```
 
@@ -132,7 +156,7 @@ log.file=liuzx-jce.log
 <dependency>
     <groupId>org.liuzx</groupId>
     <artifactId>liuzx-sdf-jce</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.1</version>
 </dependency>
 ```
 
