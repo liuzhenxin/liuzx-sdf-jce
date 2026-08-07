@@ -17,7 +17,8 @@ public class SM3DigestTest {
         md.update("hello world".getBytes());
         byte[] digest = md.digest();
         // This is the expected SM3 hash of "hello world"
-        String expectedHash = "44F0061E5145A584342534295496044A5B55CB53383995877F54044D2B4421B2";
+        // 用 openssl dgst -sm3 与数盾设备实测一致，修正了原有过时/错误的期望值
+        String expectedHash = "44F0061E69FA6FDFC290C494654A05DC0C053DA7E5C52B84EF93A9D67D3FFF88";
         assertEquals(expectedHash, toHexString(digest));
     }
 

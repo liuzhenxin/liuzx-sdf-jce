@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.liuzx.jce.provider.LiuZXProvider;
 import org.liuzx.jce.provider.asymmetric.rsa.RSAInternalKeyGenParameterSpec;
+import org.liuzx.jce.provider.asymmetric.rsa.SDFRSAPrivateKey;
 
 import javax.crypto.Cipher;
 import java.nio.charset.StandardCharsets;
@@ -12,6 +13,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
+import java.security.interfaces.RSAPublicKey;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -23,6 +25,12 @@ public class RSAInternalKeyCipherTest {
     // !!! 请将此值修改为您SDF设备上实际存在的RSA密钥对索引 !!!
     // 可通过 -Dliuzx.test.rsa.keyIndex=<N> 指定本机实际存在的 RSA 内部密钥索引
     private static final int INTERNAL_RSA_KEY_INDEX = Integer.getInteger("liuzx.test.rsa.keyIndex", 1);
+
+    // 设备 PIN 通过 -Dliuzx.test.keyPassword 传入，避免硬编码提交；未指定时为 null（不获取访问权限）
+    private static char[] keyPassword() {
+        String pwd = System.getProperty("liuzx.test.keyPassword");
+        return (pwd == null || pwd.isEmpty()) ? null : pwd.toCharArray();
+    }
 
     @BeforeAll
     public static void setup() {
@@ -63,8 +71,11 @@ public class RSAInternalKeyCipherTest {
         System.out.println("Ciphertext (Hex): " + toHexString(ciphertext));
 
         // 4. 使用内部私钥解密 (调用 SDF_InternalPrivateKeyOperation_RSA)
+        // 内部私钥操作需先获取访问权限，将设备 PIN 封装进私钥对象
+        SDFRSAPrivateKey privateKeyForUse = new SDFRSAPrivateKey(INTERNAL_RSA_KEY_INDEX, keyPassword(),
+                (RSAPublicKey) keyPair.getPublic());
         Cipher decryptCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding", LiuZXProvider.PROVIDER_NAME);
-        decryptCipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+        decryptCipher.init(Cipher.DECRYPT_MODE, privateKeyForUse);
         
         byte[] decryptedBytes = decryptCipher.doFinal(ciphertext);
         assertNotNull(decryptedBytes, "Decrypted bytes should not be null.");

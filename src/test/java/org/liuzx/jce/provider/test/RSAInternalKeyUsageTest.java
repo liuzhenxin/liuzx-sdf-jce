@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.liuzx.jce.provider.LiuZXProvider;
 import org.liuzx.jce.provider.asymmetric.rsa.RSAInternalKeyGenParameterSpec;
+import org.liuzx.jce.provider.asymmetric.rsa.SDFRSAPrivateKey;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -12,6 +13,7 @@ import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
 import java.security.Signature;
+import java.security.interfaces.RSAPublicKey;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -24,8 +26,11 @@ public class RSAInternalKeyUsageTest {
     // 可通过 -Dliuzx.test.rsa.keyIndex=<N> 指定本机实际存在的 RSA 内部密钥索引
     private static final int INTERNAL_RSA_KEY_INDEX = Integer.getInteger("liuzx.test.rsa.keyIndex", 1);
     
-    // 如果访问密钥需要密码，请在此处设置
-    private static final char[] KEY_PASSWORD = null; // "123456".toCharArray();
+    // 设备 PIN 通过 -Dliuzx.test.keyPassword 传入，避免硬编码提交；未指定时为 null（不获取访问权限）
+    private static char[] keyPassword() {
+        String pwd = System.getProperty("liuzx.test.keyPassword");
+        return (pwd == null || pwd.isEmpty()) ? null : pwd.toCharArray();
+    }
 
     @BeforeAll
     public static void setup() {
@@ -64,9 +69,10 @@ public class RSAInternalKeyUsageTest {
         String algorithm = "SHA256withRSA";
         Signature signer = Signature.getInstance(algorithm, LiuZXProvider.PROVIDER_NAME);
         
-        // 使用私钥引用进行初始化。注意：如果需要密码，私钥对象需要能够携带密码信息。
-        // 我们当前的SDFRSAPrivateKey设计是在签名时（在SDFUtil中）传递密码。
-        signer.initSign(keyPair.getPrivate());
+        // 使用私钥引用进行初始化。内部私钥操作需先获取访问权限，将设备 PIN 封装进私钥对象。
+        SDFRSAPrivateKey privateKeyForUse = new SDFRSAPrivateKey(INTERNAL_RSA_KEY_INDEX, keyPassword(),
+                (RSAPublicKey) keyPair.getPublic());
+        signer.initSign(privateKeyForUse);
         System.out.println("Signature instance initialized for signing with algorithm: " + algorithm);
 
         // 6. 更新数据并执行签名

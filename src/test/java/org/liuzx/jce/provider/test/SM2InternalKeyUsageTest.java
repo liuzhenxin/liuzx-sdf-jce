@@ -32,8 +32,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class SM2InternalKeyUsageTest {
 
-    private static final char[] KEY_PASSWORD = "TestPassword123!".toCharArray();
+    // 设备 PIN 通过 -Dliuzx.test.keyPassword 传入，避免硬编码提交；默认保留原测试值
+    private static final char[] KEY_PASSWORD = readKeyPassword();
     private static final Random random = new Random();
+
+    private static char[] readKeyPassword() {
+        String pwd = System.getProperty("liuzx.test.keyPassword");
+        return (pwd == null || pwd.isEmpty()) ? "TestPassword123!".toCharArray() : pwd.toCharArray();
+    }
+
+    // 设备内部 SM2 密钥索引通过 -Dliuzx.test.sm2.keyIndex 指定；未指定时沿用原随机索引
+    private int nextKeyIndex() {
+        return Integer.getInteger("liuzx.test.sm2.keyIndex", 1000 + random.nextInt(1000));
+    }
 
     @BeforeAll
     public static void setup() {
@@ -47,7 +58,7 @@ public class SM2InternalKeyUsageTest {
     @Order(1)
     @DisplayName("Load and Use Internal Signing Key Pair WITH Password")
     public void testLoadAndUseInternalSignKeyPairWithPassword() throws Exception {
-        int keyIndex = 1000 + random.nextInt(1000);
+        int keyIndex = nextKeyIndex();
         System.out.println("--- Testing Internal Signing Key (WITH Password) at Index: " + keyIndex + " ---");
 
         KeyPair signKeyPairRef = loadInternalKeyPairRef(keyIndex, SM2InternalKeyGenParameterSpec.KeyType.SIGN);
@@ -66,7 +77,7 @@ public class SM2InternalKeyUsageTest {
     @Order(2)
     @DisplayName("Load and Use Internal Signing Key Pair WITHOUT Password")
     public void testLoadAndUseInternalSignKeyPairWithoutPassword() throws Exception {
-        int keyIndex = 1000 + random.nextInt(1000);
+        int keyIndex = nextKeyIndex();
         System.out.println("\n--- Testing Internal Signing Key (WITHOUT Password) at Index: " + keyIndex + " ---");
 
         KeyPair signKeyPairRef = loadInternalKeyPairRef(keyIndex, SM2InternalKeyGenParameterSpec.KeyType.SIGN);
@@ -84,7 +95,7 @@ public class SM2InternalKeyUsageTest {
     @Order(3)
     @DisplayName("Load and Use Internal Encryption Key Pair WITH Password")
     public void testLoadAndUseInternalEncryptKeyPairWithPassword() throws Exception {
-        int keyIndex = 1000 + random.nextInt(1000);
+        int keyIndex = nextKeyIndex();
         System.out.println("\n--- Testing Internal Encryption Key (WITH Password) at Index: " + keyIndex + " ---");
 
         KeyPair encryptKeyPairRef = loadInternalKeyPairRef(keyIndex, SM2InternalKeyGenParameterSpec.KeyType.ENCRYPT);
