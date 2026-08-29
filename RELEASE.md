@@ -2,7 +2,7 @@
 
 本文档描述将 `liuzx-sdf-jce` 发布到 Sonatype **Maven Central Portal** 的完整步骤。
 
-发布命令：`mvn clean deploy -Prelease -DskipTests=true`
+发布命令：`mvn clean deploy -Prelease,gpg-signing -DskipTests=true`
 
 代码侧已就绪：`pom.xml` 已配好 Central 元数据（licenses/scm/developers 等）、主 jar 已去掉 manifest Class-Path，并新增了 `release` profile（sources / javadoc / gpg / central-publishing 插件）。以下是需要手动完成的操作。
 
@@ -78,10 +78,27 @@ gpg --keyserver keys.openpgp.org --send-keys <KEYID>
    - 更安全的方式：settings.xml 不写 `gpg.passphrase`，改用 gpg-agent 缓存口令（首次发布时弹窗输入），pom 里已带 `--pinentry-mode loopback`。
 4. 本地确认 profile 生效（不真正发布）：
    ```bash
-   mvn help:effective-pom -Prelease | grep -A3 "gpg-plugin"
+   mvn help:effective-pom -Prelease,gpg-signing | grep -A3 "gpg-plugin"
    ```
 
 ## 4. 发布
+
+> **推荐：一键脚本**（完成打包 → 发布 → 打 tag → 升级到下一个 `-SNAPSHOT`）
+>
+> ```bash
+> ./release.sh                        # 用 pom.xml 当前版本（须非 SNAPSHOT）发布
+> ./release.sh --version 1.2.0        # 先改版本为 1.2.0 再发布（当前是 -SNAPSHOT 时也用此参数）
+> ./release.sh --update-docs          # 同步更新 README.md / index.html 版本号与产物名
+> ./release.sh --with-tests           # 打包/发布时运行单元测试（需真实 SDF 硬件）
+> ./release.sh --dry-run              # 演练：只打印将执行的命令
+> ./release.sh --push                 # 发布成功后推送提交与 tag 到 origin
+> ```
+>
+> 脚本会：预检（settings.xml / tag 冲突）→ `mvn clean package` → `mvn clean deploy -Prelease,gpg-signing -DskipTests=true` →
+> 提交 `chore(release): 发布 X.Y.Z 到 Maven Central` 并打 `vX.Y.Z` tag → pom 改为 `X.Y.(Z+1)-SNAPSHOT` 并提交。
+> 以下手动步骤保留作参考/排错使用。
+
+### 4.1 手动方式
 
 1. 把 `pom.xml` 版本改为**非 SNAPSHOT**（Central 拒收 SNAPSHOT）：
    ```bash
@@ -89,15 +106,22 @@ gpg --keyserver keys.openpgp.org --send-keys <KEYID>
    ```
 2. 执行发布：
    ```bash
-   mvn clean deploy -Prelease -DskipTests=true
+   mvn clean deploy -Prelease,gpg-signing -DskipTests=true
    ```
-   - **必须带 `-Prelease`**：sources/javadoc/gpg/central-publishing 都在该 profile 里；不带会报「没有 distributionManagement」。
+   - **必须带 `-Prelease,gpg-signing`**：`release` 生成并发布 sources/javadoc/GPG 产物，`gpg-signing` 从本机 Maven settings 注入签名凭据。
    - 测试依赖真实 SDF 硬件，发布时保持 skipTests（pom 已默认 true）。
    - 发布产物 = JCE 签名的瘦 jar + sources + javadoc + 各自的 `.asc` + 签名后的 `.pom`。
 3. `autoPublish=true`：校验通过后 Central 自动发布。在 central.sonatype.com → Publish 页观察进度；成功后几分钟内可在 https://repo1.maven.org/maven2/org/liuzx/ 看到。
 4. 发布成功，把版本改回开发版本：
    ```bash
    sed -i '' 's|<version>1.1.0</version>|<version>1.1.1-SNAPSHOT</version>|' pom.xml
+   ```
+5. （可选）提交发布并打 tag：
+   ```bash
+   git add pom.xml && git commit -m "chore(release): 发布 1.1.0 到 Maven Central"
+   git tag v1.1.0
+   sed -i '' 's|<version>1.1.0</version>|<version>1.1.1-SNAPSHOT</version>|' pom.xml
+   git add pom.xml && git commit -m "chore(release): 回到 1.1.1-SNAPSHOT"
    ```
 
 ## 常见问题
@@ -109,6 +133,7 @@ gpg --keyserver keys.openpgp.org --send-keys <KEYID>
 | GPG 找不到密钥 / 签名失败 | `gpg.keyname` 未用 KEYID；或 gpg-agent 未缓存口令 |
 | javadoc 报错中断 | release profile 已配 `doclint=none`，仍报错则看具体错误（多为源码注释问题） |
 | `mvn deploy` 提示无 distributionManagement | 忘了加 `-Prelease` |
+| GPG 显示 `key default` 或等待输入 | 忘了启用 settings 中的 `gpg-signing` profile，或当前进程无权访问 `~/.gnupg` |
 | 发布失败被拒 | 检查 Portal 上校验报告，通常是元数据/签名问题，修正后重新 deploy |
 
 ## 附：本地运行（不发布）

@@ -1,11 +1,9 @@
 package org.liuzx.jce.jna;
 
 import com.sun.jna.Library;
-import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
 import org.liuzx.jce.jna.structure.*;
-import org.liuzx.jce.provider.SDFConfig;
 
 public interface SDFLibrary extends Library {
 
@@ -14,35 +12,7 @@ public interface SDFLibrary extends Library {
     }
 
     class LazyHolder {
-        static final SDFLibrary INSTANCE = loadLibrary();
-
-        private static SDFLibrary loadLibrary() {
-            String path = SDFConfig.getInstance().getDefaultLibraryPath();
-            try {
-                return Native.load(path, SDFLibrary.class);
-            } catch (Throwable firstError) {
-                System.err.println("[SDFLibrary] Failed to load native library with path: " + path);
-                System.err.println("[SDFLibrary] Error: " + firstError);
-                if (firstError.getCause() != null) {
-                    System.err.println("[SDFLibrary] Caused by: " + firstError.getCause());
-                }
-                try {
-                    System.err.println("[SDFLibrary] Trying fallback: Native.load(\"sdcrypto4j\", ...)");
-                    SDFLibrary lib = Native.load("sdcrypto4j", SDFLibrary.class);
-                    System.err.println("[SDFLibrary] Fallback succeeded via short name");
-                    return lib;
-                } catch (Throwable fallbackError) {
-                    System.err.println("[SDFLibrary] Fallback also failed: " + fallbackError);
-                    throw new RuntimeException(
-                            "Failed to load SDF native library. Path='" + path
-                                    + "', java.library.path='" + System.getProperty("java.library.path")
-                                    + "', jna.library.path='" + System.getProperty("jna.library.path")
-                                    + "'. First error: " + firstError
-                                    + ". Fallback error: " + fallbackError,
-                            firstError);
-                }
-            }
-        }
+        static final SDFLibrary INSTANCE = SDFLibraryLoader.loadLibrary();
     }
 
     // =========================================================================

@@ -19,10 +19,18 @@
     "Shudun": {
       "platforms": {
         "linux": {
-          "x86_64": "classpath:native/shudun/linux-x86_64/libsdhsmcrypto.so"
+          "x86_64": {
+            "path": "classpath:native/shudun/linux-x86_64/libsdhsmcrypto.so",
+            "sha256": "cfca94c2fe127051f0335da5c88f2bdef750276f0b68f15feec6d8b544e355a6",
+            "rsaKeyLayout": "packed"
+          }
         },
         "windows": {
-          "x86_64": "classpath:native/shudun/windows-x86_64/sdhsmsdf_x64.dll"
+          "x86_64": {
+            "path": "classpath:native/shudun/windows-x86_64/sdhsmsdf_x64.dll",
+            "sha256": "5d7059a576d28704576ce22ec2ff955a7b66e5f4fd8aa0bfaa7c6d35287953aa",
+            "rsaKeyLayout": "packed"
+          }
         }
       }
     }

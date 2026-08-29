@@ -1,6 +1,7 @@
 package org.liuzx.jce.provider.asymmetric.rsa;
 
 import org.liuzx.jce.provider.exception.SDFException;
+import org.liuzx.jce.provider.SDFConfig;
 import org.liuzx.jce.provider.session.SDFSession;
 import org.liuzx.jce.provider.session.SDFSessionManager;
 import org.liuzx.jce.jna.SDFLibrary;
@@ -8,7 +9,6 @@ import org.liuzx.jce.jna.structure.RSArefPrivateKey;
 import org.liuzx.jce.jna.structure.RSArefPublicKey;
 
 import java.math.BigInteger;
-import java.util.Arrays;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -69,6 +69,7 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
             
             RSArefPublicKey.ByReference refPublicKey = new RSArefPublicKey.ByReference();
             RSArefPrivateKey.ByReference refPrivateKey = new RSArefPrivateKey.ByReference();
+            SDFConfig.RsaKeyLayout layout = SDFConfig.getInstance().getRsaKeyLayout();
 
             // 调用SDF设备生成RSA密钥对
             int rv = sdf.SDF_GenerateKeyPair_RSA(session.getSessionHandle(), this.strength, refPublicKey, refPrivateKey);
@@ -77,23 +78,34 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
             }
 
             // 1. 转换公钥
-            RSAPublicKey rsaPublicKey = convertToRSAPublicKey(refPublicKey);
+            RSAPublicKey rsaPublicKey = convertToRSAPublicKey(refPublicKey, layout);
 
             // 2. 转换私钥 (提取所有CRT参数)
-            int keyBytes = (refPrivateKey.bits + 7) / 8;
-            int primeBytes = (keyBytes + 1) / 2;
-
-            // 数盾把 RSA 私钥当作变长结构 bits + m[keyBytes] + e[keyBytes] + d[keyBytes] +
-            // p[primeBytes] + q[primeBytes] + dp[primeBytes] + dq[primeBytes] +
-            // qinv[primeBytes] 写回输出缓冲区，子区间随 keyBytes 平移：对 ≤2048 位密钥，
-            // e 落在 m 字段尾部、d 落在 e 字段前段、CRT 参数整体前移；4096 位才与
-            // JNA 字段一一对齐。故必须按结构体相对偏移提取，而非按字段名直读。
-            BigInteger d = extractSdfPrivateRegion(refPrivateKey, 2 * keyBytes, keyBytes);
-            BigInteger p = extractSdfPrivateRegion(refPrivateKey, 3 * keyBytes, primeBytes);
-            BigInteger q = extractSdfPrivateRegion(refPrivateKey, 3 * keyBytes + primeBytes, primeBytes);
-            BigInteger dP = extractSdfPrivateRegion(refPrivateKey, 3 * keyBytes + 2 * primeBytes, primeBytes);
-            BigInteger dQ = extractSdfPrivateRegion(refPrivateKey, 3 * keyBytes + 3 * primeBytes, primeBytes);
-            BigInteger qInv = extractSdfPrivateRegion(refPrivateKey, 3 * keyBytes + 4 * primeBytes, primeBytes);
+            int keyBytes = RSAKeyConverter.keyBytes(refPrivateKey.bits);
+            int primeBytes = RSAKeyConverter.primeBytes(keyBytes);
+            BigInteger d;
+            BigInteger p;
+            BigInteger q;
+            BigInteger dP;
+            BigInteger dQ;
+            BigInteger qInv;
+            if (layout == SDFConfig.RsaKeyLayout.STANDARD) {
+                d = RSAKeyConverter.readRightAligned(refPrivateKey.d, keyBytes);
+                p = RSAKeyConverter.readRightAligned(refPrivateKey.p, primeBytes);
+                q = RSAKeyConverter.readRightAligned(refPrivateKey.q, primeBytes);
+                dP = RSAKeyConverter.readRightAligned(refPrivateKey.dp, primeBytes);
+                dQ = RSAKeyConverter.readRightAligned(refPrivateKey.dq, primeBytes);
+                qInv = RSAKeyConverter.readRightAligned(refPrivateKey.qinv, primeBytes);
+            } else {
+                byte[] packed = RSAKeyConverter.combine(refPrivateKey.m, refPrivateKey.e, refPrivateKey.d,
+                        refPrivateKey.p, refPrivateKey.q, refPrivateKey.dp, refPrivateKey.dq, refPrivateKey.qinv);
+                d = RSAKeyConverter.readPacked(packed, 2 * keyBytes, keyBytes);
+                p = RSAKeyConverter.readPacked(packed, 3 * keyBytes, primeBytes);
+                q = RSAKeyConverter.readPacked(packed, 3 * keyBytes + primeBytes, primeBytes);
+                dP = RSAKeyConverter.readPacked(packed, 3 * keyBytes + 2 * primeBytes, primeBytes);
+                dQ = RSAKeyConverter.readPacked(packed, 3 * keyBytes + 3 * primeBytes, primeBytes);
+                qInv = RSAKeyConverter.readPacked(packed, 3 * keyBytes + 4 * primeBytes, primeBytes);
+            }
 
             SDFRSAPrivateKey sdfPrivateKey = new SDFRSAPrivateKey(rsaPublicKey, d, p, q, dP, dQ, qInv);
 
@@ -102,56 +114,6 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate RSA key pair using SDF device", e);
         }
-    }
-
-    /**
-     * 按结构体相对偏移提取 RSA 私钥的一个数值子区间。
-     *
-     * <p>JNA 结构体字段的字节区间（相对 m 字段起点，即 bits 之后的偏移）固定为：
-     * m=[0,512) e=[512,1024) d=[1024,1536) p=[1536,1792) q=[1792,2048)
-     * dp=[2048,2304) dq=[2304,2560) qinv=[2560,2816)。而数盾库输出的是变长布局
-     * bits + m[keyBytes] + e[keyBytes] + d[keyBytes] + p[primeBytes] + ...，
-     * 各子区间随 keyBytes 平移。此处按 relOffset 定位到对应字段并拷贝 fieldLen 字节。
-     * 各数值右对齐填充子区间（65537 等短值在末尾），从子区间开头读取对恰好填满的值
-     * （2048/4096 位的模数、d、p、q）与从末尾读取等价。
-     */
-    private BigInteger extractSdfPrivateRegion(RSArefPrivateKey refPrivateKey,
-            int relOffset, int fieldLen) {
-        byte[] target;
-        int base;
-        if (relOffset < 512) {
-            target = refPrivateKey.m;
-            base = relOffset;
-        } else if (relOffset < 1024) {
-            target = refPrivateKey.e;
-            base = relOffset - 512;
-        } else if (relOffset < 1536) {
-            target = refPrivateKey.d;
-            base = relOffset - 1024;
-        } else if (relOffset < 1792) {
-            target = refPrivateKey.p;
-            base = relOffset - 1536;
-        } else if (relOffset < 2048) {
-            target = refPrivateKey.q;
-            base = relOffset - 1792;
-        } else if (relOffset < 2304) {
-            target = refPrivateKey.dp;
-            base = relOffset - 2048;
-        } else if (relOffset < 2560) {
-            target = refPrivateKey.dq;
-            base = relOffset - 2304;
-        } else {
-            target = refPrivateKey.qinv;
-            base = relOffset - 2560;
-        }
-        if (base < 0 || base + fieldLen > target.length) {
-            throw new IllegalArgumentException(
-                    "RSA private key region out of JNA buffer: bits=" + refPrivateKey.bits
-                            + " relOffset=" + relOffset + " fieldLen=" + fieldLen);
-        }
-        byte[] bytes = new byte[fieldLen];
-        System.arraycopy(target, base, bytes, 0, fieldLen);
-        return new BigInteger(1, bytes);
     }
 
     private KeyPair loadInternalKeyPair() {
@@ -208,53 +170,25 @@ public class RSAKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
     }
 
     private RSAPublicKey convertToRSAPublicKey(RSArefPublicKey refPublicKey) throws Exception {
-        return buildRSAPublicKey(refPublicKey.bits, refPublicKey.m, refPublicKey.e);
+        return convertToRSAPublicKey(refPublicKey, SDFConfig.getInstance().getRsaKeyLayout());
     }
 
-    private RSAPublicKey buildRSAPublicKey(int bits, byte[] modulusBuffer, byte[] exponentBuffer) throws Exception {
-        int keyBytes = (bits + 7) / 8;
-        if (keyBytes > modulusBuffer.length) {
-            throw new IllegalArgumentException(
-                    "RSA public key too large for buffer: bits=" + bits
-                            + " (max " + (modulusBuffer.length * 8) + ")");
-        }
-
-        // 数盾 SDF 导出函数返回的模数在缓冲区中左对齐（从 m[0] 开始，大端）。
-        // 实测：4096 位密钥 512 字节恰好填满 Ex 缓冲区；2048 位密钥 256 字节位于
-        // m[0..255]，m[256..511] 为 0。若按"右对齐取末尾 keyBytes 字节"读取，
-        // 2048 位会取到全零 → RSA keys must be at least 512 bits long。
-        // 故直接从缓冲区开头拷贝 keyBytes 字节。
-        byte[] modulusBytes = new byte[keyBytes];
-        System.arraycopy(modulusBuffer, 0, modulusBytes, 0, keyBytes);
-        BigInteger modulus = new BigInteger(1, modulusBytes);
-
-        // 指数的位置与密钥位长相关（数盾实测，dump 原始缓冲区确认）：
-        //   4096 位：指数位于 e 缓冲区末尾（右对齐，e[508..511] = 65537），m 填满；
-        //   2048 位：e 缓冲区全零，指数被放在 m 缓冲区末尾（m[508..511] = 65537）。
-        // 故先取 e 缓冲区；若 e 全零（2048 位布局），改为从 m 缓冲区模数之后的尾部提取。
+    private RSAPublicKey convertToRSAPublicKey(
+            RSArefPublicKey refPublicKey, SDFConfig.RsaKeyLayout layout) throws Exception {
+        int keyBytes = RSAKeyConverter.keyBytes(refPublicKey.bits);
+        BigInteger modulus;
         BigInteger publicExponent;
-        if (isAllZero(exponentBuffer)) {
-            if (keyBytes >= modulusBuffer.length) {
-                throw new IllegalArgumentException(
-                        "RSA public key: exponent missing from both buffers (bits=" + bits + ")");
-            }
-            publicExponent = new BigInteger(1,
-                    Arrays.copyOfRange(modulusBuffer, keyBytes, modulusBuffer.length));
+        if (layout == SDFConfig.RsaKeyLayout.STANDARD) {
+            modulus = RSAKeyConverter.readRightAligned(refPublicKey.m, keyBytes);
+            publicExponent = RSAKeyConverter.readRightAligned(refPublicKey.e, refPublicKey.e.length);
         } else {
-            publicExponent = new BigInteger(1, exponentBuffer);
+            byte[] packed = RSAKeyConverter.combine(refPublicKey.m, refPublicKey.e);
+            modulus = RSAKeyConverter.readPacked(packed, 0, keyBytes);
+            publicExponent = RSAKeyConverter.readPacked(packed, keyBytes, keyBytes);
         }
 
         RSAPublicKeySpec keySpec = new RSAPublicKeySpec(modulus, publicExponent);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         return (RSAPublicKey) keyFactory.generatePublic(keySpec);
-    }
-
-    private static boolean isAllZero(byte[] buffer) {
-        for (byte b : buffer) {
-            if (b != 0) {
-                return false;
-            }
-        }
-        return true;
     }
 }

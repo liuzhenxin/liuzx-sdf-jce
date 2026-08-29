@@ -29,7 +29,14 @@
 
 ## 📋 版本说明
 
-**当前版本: 1.1.2**（2026-08-07）
+**当前版本: 1.1.3**（2026-08-29）
+
+### 1.1.3 (2026-08-29)
+
+- **配置注入加固**：支持通过 `liuzx.sdf.profile.path` 注入外部厂商 profile，并校验路径、结构与 SHA-256；显式路径加载失败时默认不再静默回退。
+- **多厂商 RSA 布局**：新增 `rsaKeyLayout`（`standard` / `packed`），同时兼容 DYSX 标准定长右对齐结构和数盾变长结构，修复 DYSX RSA 2048 外部密钥运算。
+- **原生库加载与会话管理增强**：集中动态库选择与加载，支持 classpath 原生库安全提取复用、厂商 INI 独立配置及可配置会话池生命周期。
+- **测试补充**：新增配置、库选择、RSA 布局和会话生命周期单元测试；DYSX 容器连接真实密码机完成 SM2/SM3/SM4/RSA 与硬件随机数验收。
 
 ### 1.1.2 (2026-08-07)
 
@@ -73,7 +80,7 @@ mvn clean package
 该命令会完成以下操作：
 1. 编译所有Java源代码。
 2. 将所有依赖项（如 JNA, Gson）复制到 `target/lib` 目录。
-3. 将本项目打包成 `target/liuzx-sdf-jce-1.1.2.jar`。
+3. 将本项目打包成 `target/liuzx-sdf-jce-1.1.3.jar`。
 4. **（重要）** 使用 `keystore.jks` 对主JAR包进行签名，以满足JCE Provider的安全要求。
 
 ### 2. 运行演示程序
@@ -99,9 +106,11 @@ mvn clean package
 
 ## ⚙️ 配置
 
-### 1. SDF动态库配置 (`sdf-config.json`)
+### 1. SDF 动态库配置
 
-该文件位于 `src/main/resources` 目录下，用于配置不同厂商、不同平台下的SDF动态库路径。
+`src/main/resources/sdf-config.json` 是随 JAR 发布的默认 profile。生产环境可通过
+`-Dliuzx.sdf.profile.path=/etc/liuzx/sdf-profile.json` 注入外部 profile，无需重新打包 JAR。
+外部 profile 必须是存在、可读的绝对路径。
 
 ```json
 {
@@ -110,16 +119,25 @@ mvn clean package
     "Dysx": {
       "platforms": {
         "linux": {
-          "aarch64": "/home/gemotech/soft/libsdf/libsdf.so"
-        },
-        "windows": { ... }
+          "x86_64": {
+            "path": "/opt/vendor/lib/libsdf.so",
+            "sha256": "<64 位十六进制摘要>",
+            "rsaKeyLayout": "standard"
+          }
+        }
       }
     }
   }
 }
 ```
-- **`defaultVendor`**: `run.sh` / `run.bat` 默认使用的厂商配置。
-- **`vendors`**: 可以定义多个厂商，每个厂商下根据 `[操作系统]/[CPU架构]` 定义动态库的绝对路径。
+
+- **`defaultVendor`**：未指定 `liuzx.sdf.vendor` 时使用的厂商。
+- **`vendors`**：按照 `[操作系统]/[CPU架构]` 配置库。值可以是路径字符串，也可以是含
+  `path`、可选 `sha256` 和 `rsaKeyLayout` 的对象。
+- **`rsaKeyLayout`**：默认 `standard`（标准定长字段右对齐）；厂商采用连续变长 RSA 结构时配置为
+  `packed`。可用 `-Dliuzx.sdf.rsa-key-layout=...` 临时覆盖。
+- 文件系统路径必须是绝对路径；选中后会检查存在性、普通文件类型和可读性。
+- `classpath:` 仅用于随 JAR 分发的资源；配置 `sha256` 后会在加载前校验完整性。
 
 运行时可以通过系统属性覆盖默认厂商或动态库路径：
 
@@ -127,16 +145,36 @@ mvn clean package
 # 使用 liuzx-nas 工程当前携带的数盾 SDF 动态库
 # （主 JAR 不含 Class-Path，依赖放在 target/lib 下，需用 -cp 指定）
 java -Dliuzx.sdf.vendor=Shudun \
-  -cp target/liuzx-sdf-jce-1.1.2.jar:target/lib/* \
+  -cp target/liuzx-sdf-jce-1.1.3.jar:target/lib/* \
   org.liuzx.jce.demo.Main
 
 # 直接指定某个动态库路径，优先级高于 vendor 配置
 java -Dliuzx.sdf.library.path=/usr/lib64/libsdhsmcrypto.so \
-  -cp target/liuzx-sdf-jce-1.1.2.jar:target/lib/* \
+  -cp target/liuzx-sdf-jce-1.1.3.jar:target/lib/* \
+  org.liuzx.jce.demo.Main
+
+# 使用外部厂商 profile
+java -Dliuzx.sdf.profile.path=/etc/liuzx/sdf-profile.json \
+  -Dliuzx.sdf.vendor=Shudun \
+  -cp target/liuzx-sdf-jce-1.1.3.jar:target/lib/* \
   org.liuzx.jce.demo.Main
 ```
 
-`Shudun` 配置的动态库已放在本工程 `src/main/resources/native/shudun/` 下，并会随 JAR 打包。配置使用 `classpath:` 路径，运行时会自动将 JAR 内动态库解压到临时目录后交给 JNA 加载。生产部署也可以使用 `-Dliuzx.sdf.library.path` 显式指定外部固定路径，优先级高于 vendor 配置。
+动态库选择优先级为：`liuzx.sdf.library.path` → 外部 profile → 内置 profile。
+`liuzx.sdf.vendor` 可覆盖 profile 的 `defaultVendor`。短名称回退默认关闭；只有在没有显式库路径时，
+才可通过 `-Dliuzx.sdf.library.fallback-enabled=true` 启用。
+
+`Shudun` 原生库位于 `src/main/resources/native/shudun/`，运行时校验 SHA-256 后提取到权限受限的
+临时目录，并在当前 JVM 内复用。若厂商库还依赖同目录中的其他原生库，生产部署应使用外部目录和
+`liuzx.sdf.library.path`。
+
+如需向厂商扩展接口 `SDF_OpenDeviceEx` 传入 INI 文件，使用：
+
+```bash
+-Dliuzx.sdf.vendor-config.path=/etc/vendor/device.ini
+```
+
+旧属性 `liuzx.sdf.config.path` 仍兼容，但已不推荐使用。
 
 ### 2. 日志配置 (`liuzx-jce.properties`)
 
@@ -165,7 +203,7 @@ log.file=liuzx-jce.log
 <dependency>
     <groupId>org.liuzx</groupId>
     <artifactId>liuzx-sdf-jce</artifactId>
-    <version>1.1.2</version>
+    <version>1.1.3</version>
 </dependency>
 ```
 
