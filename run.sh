@@ -4,9 +4,13 @@ set -e
 cd "$(dirname "$0")"
 
 # --- Configuration ---
-MAIN_JAR="target/liuzx-sdf-jce-1.1.1-SNAPSHOT.jar"
-LIB_DIR="target/lib"
 MAIN_CLASS="org.liuzx.jce.demo.Main"
+LIB_DIR="target/lib"
+
+# Locate the packaged main JAR (version agnostic; exclude -sources/-javadoc).
+MAIN_JAR="$(ls -1t target/liuzx-sdf-jce-*.jar 2>/dev/null \
+    | grep -vE -- '-(sources|javadoc)\.jar$' \
+    | head -n1 || true)"
 
 # --- Environment Variables ---
 export LC_ALL=zh_CN.utf8
@@ -17,8 +21,8 @@ export TZ=Asia/Shanghai
 JAVA_OPTS="-Dfile.encoding=UTF-8"
 
 # --- Pre-flight Checks ---
-if [ ! -f "$MAIN_JAR" ]; then
-    echo "Error: Main JAR file not found at $MAIN_JAR"
+if [ -z "$MAIN_JAR" ] || [ ! -f "$MAIN_JAR" ]; then
+    echo "Error: Main JAR file not found under target/."
     echo "Please run 'mvn clean package' first."
     exit 1
 fi

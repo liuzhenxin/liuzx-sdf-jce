@@ -32,6 +32,7 @@ class SDFDeviceOpenerTest {
 
         assertEquals(0, rv);
         assertEquals(Collections.singletonList("SDF_OpenDevice"), calls);
+        assertEquals("SDF_OpenDevice", SDFDeviceOpener.getLastSuccessfulOperation());
     }
 
     @Test
@@ -43,6 +44,7 @@ class SDFDeviceOpenerTest {
 
         assertEquals(0, rv);
         assertEquals(Collections.singletonList("SDF_OpenDeviceEx"), calls);
+        assertEquals("SDF_OpenDeviceEx", SDFDeviceOpener.getLastSuccessfulOperation());
     }
 
     @Test
@@ -57,6 +59,7 @@ class SDFDeviceOpenerTest {
         // First call probes Ex and WithPath (both fail) then falls back; later calls skip the extensions.
         assertEquals(Arrays.asList("SDF_OpenDeviceEx", "SDF_OpenDeviceWithPath", "SDF_OpenDevice",
                 "SDF_OpenDevice"), calls);
+        assertEquals("SDF_OpenDevice", SDFDeviceOpener.getLastSuccessfulOperation());
     }
 
     @Test
@@ -68,6 +71,7 @@ class SDFDeviceOpenerTest {
 
         assertEquals(0, rv);
         assertEquals(Arrays.asList("SDF_OpenDeviceEx", "SDF_OpenDeviceWithPath"), calls);
+        assertEquals("SDF_OpenDeviceWithPath", SDFDeviceOpener.getLastSuccessfulOperation());
     }
 
     @Test

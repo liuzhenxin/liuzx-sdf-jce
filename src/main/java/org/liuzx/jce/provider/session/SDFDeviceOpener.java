@@ -30,7 +30,19 @@ public final class SDFDeviceOpener {
 
     private static final Set<String> MISSING_SYMBOLS = ConcurrentHashMap.newKeySet();
 
+    private static volatile String lastSuccessfulOperation = "uninitialized";
+
     private SDFDeviceOpener() {
+    }
+
+    /**
+     * Returns the entry point that most recently opened a device successfully
+     * ({@code SDF_OpenDeviceEx}, {@code SDF_OpenDeviceWithPath} or
+     * {@code SDF_OpenDevice}), or {@code uninitialized} before the first open. Useful for
+     * diagnostics and smoke tests that need to confirm the effective fallback path.
+     */
+    public static String getLastSuccessfulOperation() {
+        return lastSuccessfulOperation;
     }
 
     /**
@@ -44,11 +56,19 @@ public final class SDFDeviceOpener {
      */
     public static int open(SDFLibrary sdf, Pointer[] phDeviceHandle, String vendorConfigPath) {
         if (vendorConfigPath == null) {
-            return sdf.SDF_OpenDevice(phDeviceHandle);
+            int rv = sdf.SDF_OpenDevice(phDeviceHandle);
+            if (rv == 0) {
+                lastSuccessfulOperation = OPEN_DEVICE;
+            }
+            return rv;
         }
         if (isAvailable(OPEN_DEVICE_EX)) {
             try {
-                return sdf.SDF_OpenDeviceEx(phDeviceHandle, vendorConfigPath, Pointer.NULL);
+                int rv = sdf.SDF_OpenDeviceEx(phDeviceHandle, vendorConfigPath, Pointer.NULL);
+                if (rv == 0) {
+                    lastSuccessfulOperation = OPEN_DEVICE_EX;
+                }
+                return rv;
             } catch (UnsatisfiedLinkError missing) {
                 markMissing(OPEN_DEVICE_EX, missing);
             }
@@ -57,6 +77,7 @@ public final class SDFDeviceOpener {
             try {
                 int rv = sdf.SDF_OpenDeviceWithPath(vendorConfigPath, phDeviceHandle);
                 if (rv == 0) {
+                    lastSuccessfulOperation = OPEN_DEVICE_WITH_PATH;
                     return 0;
                 }
                 // A vendor extension error must not block startup: some vendors expect a
@@ -68,7 +89,11 @@ public final class SDFDeviceOpener {
             }
         }
         logger.debug("Using {}; vendor config path '{}' will be ignored", OPEN_DEVICE, vendorConfigPath);
-        return sdf.SDF_OpenDevice(phDeviceHandle);
+        int rv = sdf.SDF_OpenDevice(phDeviceHandle);
+        if (rv == 0) {
+            lastSuccessfulOperation = OPEN_DEVICE;
+        }
+        return rv;
     }
 
     private static boolean isAvailable(String symbol) {
@@ -85,5 +110,6 @@ public final class SDFDeviceOpener {
     /** Test hook: forget cached symbol availability. */
     static void resetCapabilities() {
         MISSING_SYMBOLS.clear();
+        lastSuccessfulOperation = "uninitialized";
     }
 }

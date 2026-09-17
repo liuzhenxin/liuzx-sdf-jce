@@ -116,6 +116,35 @@ mvn clean package
 
 程序启动后，您可以选择语言，然后根据菜单提示测试各项功能。
 
+### 3. 非交互冒烟测试
+
+`scripts/sdf-smoke.sh` 会针对连接的真实密码机跑一组固定用例（设备会话、硬件随机数、
+SM3 标准向量、SM2/RSA 签名、SM4 加解密，以及可选的内部密钥），逐项打印
+`[PASS]/[FAIL]/[SKIP]`，并显示实际生效的设备打开函数。退出码 `0` 表示全部必需项通过。
+
+```bash
+chmod +x scripts/sdf-smoke.sh
+
+# 使用内置厂商库/HSM 材料自动选库（Linux）
+SMOKE_VENDOR=Shudun ./scripts/sdf-smoke.sh
+
+# 显式指定库与配置，并断言回退策略
+SMOKE_VENDOR=SanSec \
+SMOKE_LIBRARY_PATH=/opt/hsm/lib/libswsds.so \
+SMOKE_CONFIG_PATH=/opt/hsm/conf \
+SMOKE_EXPECT_STRATEGY=SDF_OpenDeviceWithPath \
+  ./scripts/sdf-smoke.sh
+
+# 附带内部密钥校验
+SMOKE_VENDOR=Dysx SMOKE_PIN=12345678 \
+SMOKE_SM2_SIGN_INDEX=21 SMOKE_RSA_SIGN_INDEX=11 SMOKE_SM4_KEY_INDEX=1 \
+  ./scripts/sdf-smoke.sh
+```
+
+常用变量：`SMOKE_VENDOR`、`SMOKE_LIBRARY_PATH`、`SMOKE_CONFIG_PATH`、
+`SMOKE_EXPECT_STRATEGY`、`SMOKE_PIN`、`SMOKE_SM2_SIGN_INDEX`、`SMOKE_RSA_SIGN_INDEX`、
+`SMOKE_SM4_KEY_INDEX`、`SMOKE_SKIP_BUILD=1`。
+
 ---
 
 ## ⚙️ 配置
