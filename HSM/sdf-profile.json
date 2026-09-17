@@ -1,0 +1,47 @@
+{
+  "defaultVendor": "Dysx",
+  "vendors": {
+    "Dysx": {
+      "platforms": {
+        "linux": {
+          "x86_64": {
+            "path": "/opt/hsm/lib/libsdf.so",
+            "rsaKeyLayout": "standard"
+          },
+          "aarch64": {
+            "path": "/opt/hsm/lib/libsdf.so",
+            "rsaKeyLayout": "standard"
+          }
+        }
+      }
+    },
+    "Sansec": {
+      "platforms": {
+        "linux": {
+          "x86_64": {
+            "path": "/opt/hsm/lib/libswsds.so",
+            "rsaKeyLayout": "standard"
+          },
+          "aarch64": {
+            "path": "/opt/hsm/lib/libswsds.so",
+            "rsaKeyLayout": "standard"
+          }
+        }
+      }
+    },
+    "Shudun": {
+      "platforms": {
+        "linux": {
+          "x86_64": {
+            "path": "/opt/hsm/lib/libsdhsmcrypto.so",
+            "rsaKeyLayout": "packed"
+          },
+          "aarch64": {
+            "path": "/opt/hsm/lib/libsdhsmcrypto.so",
+            "rsaKeyLayout": "packed"
+          }
+        }
+      }
+    }
+  }
+}

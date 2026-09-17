@@ -31,5 +31,15 @@ keystore.jks
 *.jks
 liuzx-jce.properties
 
+# HSM vendor materials (see HSM/README.md): never commit native libs or real device
+# configs. *.ini.example, sdf-profile.json and README remain committable.
+/HSM/**/*.so
+/HSM/**/*.dll
+/HSM/**/*.dylib
+/HSM/**/*.a
+/HSM/**/*.ini
+!/HSM/**/*.ini.example
+/HSM/**/*.pdf
+
 # Claude Code local settings (个人本地配置，不提交)
 .claude/settings.local.json

@@ -1,0 +1,9 @@
+[GENERAL]
+timeout=100
+worktype=1
+ciphers=1
+log=1
+level=Debug
+[HSM1]
+host=10.10.10.61
+port=8001

@@ -1,0 +1,41 @@
+#SWXA密码设备接口配置文件（三未信安）。复制为 swsds.ini 后填写现场地址与口令，勿提交真实口令。
+[ErrorLog]
+level=2
+logfile=swsds65.log
+maxsize=10
+[HSM1]
+ip=192.168.201.247
+port=8008
+passwd=<managed-secret>
+[Timeout]
+connect=60
+service=60
+[ConnectionPool]
+poolsize=50
+[KeySelect]
+SymmKey=0
+[Password]
+#0:明文口令  1:密文口令
+mode=0
+[Sem]
+#是否关闭信号灯0: 不关闭     非0: 关闭
+SemStatus=0
+[KeepAliveMechanism]
+KeepAliveTime=3
+[Global]
+#选择通信协议ssl/tcp   ssl:安全通道		tcp:tcp协议
+Protocol=tcp
+#0:单向认证		1:双向认证
+sslmode=1
+#0:RSA  1:SM2	2:ECDSA
+sslAlgorithm=0
+#是否选择加密套件 0:不选择	1：选择
+CipherList = 0
+CipherListName=ECDHE-ECDSA-AES128-SHA256
+[Authentication]
+KeyStore=ecc_client.pfx
+KeyStorePassword=<managed-secret>
+KeyStoreEnc=ecc_client.pfx
+KeyStoreEncPassword=<managed-secret>
+TrustedKeyStore=ecc_root.cer
+TrustedKeyStorePassword=

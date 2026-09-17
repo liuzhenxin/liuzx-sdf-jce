@@ -1,0 +1,29 @@
+[ HSM ]
+MODE = 0
+IP = <数盾密码机 IP>
+PORT = 1815
+POOLSIZE = 16
+CONNTIMEOUT = 500
+RWTIMEOUT = 500
+INTERVALTIME = 600
+MAXSESSION = 1024
+
+[SVS]
+APPCODE = timeStamp
+
+[ LOG ]
+DIR = /tmp
+LEVEL = 1
+SIZE = 0
+SPAN = 0
+NAME = stderr
+TRACK = 0
+
+[ SSL ]
+CACERT = /etc/shudun/tls/GMCA01.cert.pem
+CLIENTCERT = /etc/shudun/tls/ShuDunTLSv3Client.cert.pem
+CLIENTPRIKEY = /etc/shudun/tls/ShuDunTLSv3Client.key.pem
+MINVERSION = TLS1.1
+MAXVERSION = TLS1.3
+CIPHERSUITES = TLS_SM4_GCM_SM3
+AUTHENTICATIONTYPE = 1
