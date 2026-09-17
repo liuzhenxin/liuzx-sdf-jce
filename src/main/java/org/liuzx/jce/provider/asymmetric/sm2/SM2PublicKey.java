@@ -38,10 +38,10 @@ public class SM2PublicKey implements PublicKey {
 
     @Override
     public synchronized byte[] getEncoded() {
-        if (isInternal) {
-            // Internal keys cannot be reliably encoded as they are not exportable.
-            return null;
-        }
+        // Only the private component of an internal SDF key is non-exportable. The
+        // public component was already returned by SDF_ExportSignPublicKey_ECC (or
+        // SDF_ExportEncPublicKey_ECC) and must remain X.509 encodable so callers can
+        // build CSRs and certificates for the hardware-backed key.
         if (encoded == null) {
             try {
                 this.encoded = ASN1Util.toX509PublicKey(this.eccPublicKey);

@@ -129,14 +129,15 @@ public class SM4CipherSpi extends CipherSpi {
         if (internalKeyInfo != null) {
             byte[] encryptedKey = internalKeyInfo.getEncryptedKey();
             if (isEmptyEncryptedKey(encryptedKey)) {
-                rv = SDFLibrary.getInstance().SDF_ImportKEK(session.getSessionHandle(),
+                rv = SDFInternalKeyHandleResolver.resolve(SDFLibrary.getInstance(), session.getSessionHandle(),
                         internalKeyInfo.getKeyIndex(), internalKeyInfo.getKeyLengthBytes(), phKeyHandle);
             } else {
                 rv = SDFLibrary.getInstance().SDF_ImportKeyWithKEK(session.getSessionHandle(), SGD_SM4_ECB,
                         internalKeyInfo.getKeyIndex(), encryptedKey, internalKeyInfo.getKeyLengthBytes(), phKeyHandle);
             }
             session.checkResult(rv); if (rv != 0) {
-                throw new SDFException(isEmptyEncryptedKey(encryptedKey) ? "SDF_ImportKEK" : "SDF_ImportKeyWithKEK", rv);
+                throw new SDFException(isEmptyEncryptedKey(encryptedKey)
+                        ? SDFInternalKeyHandleResolver.operationName() : "SDF_ImportKeyWithKEK", rv);
             }
         } else {
             rv = SDFLibrary.getInstance().SDF_ImportKey(session.getSessionHandle(), rawKey, rawKey.length, phKeyHandle);

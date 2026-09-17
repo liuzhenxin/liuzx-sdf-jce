@@ -6,6 +6,7 @@ import org.liuzx.jce.jna.SDFLibrary;
 import org.liuzx.jce.provider.exception.SDFException;
 import org.liuzx.jce.provider.session.SDFSession;
 import org.liuzx.jce.provider.session.SDFSessionManager;
+import org.liuzx.jce.provider.symmetric.SDFInternalKeyHandleResolver;
 import org.liuzx.jce.provider.symmetric.SDFSM4InternalKey;
 
 import javax.crypto.MacSpi;
@@ -91,13 +92,16 @@ public class SDFMacSpi extends MacSpi {
                     byte[] ek = internalKeyInfo.getEncryptedKey();
                     int rv;
                     if (isEmpty(ek)) {
-                        rv = sdf.SDF_ImportKEK(session.getSessionHandle(), internalKeyInfo.getKeyIndex(),
-                                internalKeyInfo.getKeyLengthBytes(), ph);
+                        rv = SDFInternalKeyHandleResolver.resolve(sdf, session.getSessionHandle(),
+                                internalKeyInfo.getKeyIndex(), internalKeyInfo.getKeyLengthBytes(), ph);
                     } else {
                         rv = sdf.SDF_ImportKeyWithKEK(session.getSessionHandle(), 0x00000401,
                                 internalKeyInfo.getKeyIndex(), ek, internalKeyInfo.getKeyLengthBytes(), ph);
                     }
-                    session.checkResult(rv); if (rv != 0) throw new SDFException("ImportKey for MAC", rv);
+                    session.checkResult(rv); if (rv != 0) {
+                        throw new SDFException(isEmpty(ek) ? SDFInternalKeyHandleResolver.operationName()
+                                : "SDF_ImportKeyWithKEK", rv);
+                    }
                     hKeyHandle = ph[0];
                 } else {
                     Pointer[] ph = new Pointer[1];
