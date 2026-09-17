@@ -29,9 +29,9 @@
 
 ## 📋 版本说明
 
-**当前版本: 1.1.4-SNAPSHOT**
+**当前版本: 1.1.4**（2026-09-17）
 
-### 1.1.4-SNAPSHOT
+### 1.1.4 (2026-09-17)
 
 - **标准 SDF 设备打开**：始终先调用标准 `SDF_OpenDevice`（三家厂商均导出），仅在失败且配置了
   `liuzx.sdf.vendor-config.path` 时才探测路径扩展 `SDF_OpenDeviceWithPath` → `SDF_OpenDeviceEx`。
@@ -46,6 +46,9 @@
   `native/shudun/linux-aarch64/libsdhsmcrypto.so`（SHA-256 校验）。
 - **会话管理遵从单设备句柄**：`SDFSessionManager` 全局只 `SDF_OpenDevice` 一次，所有会话共享同一
   device handle（数盾要求“一个应用只打开一次设备并全局使用”）；会话仍可多开，退出前统一关闭设备。
+- **验收工具链**：新增 `scripts/sdf-smoke.sh`（非交互冒烟）、`pack-smoke.sh`（生成 aarch64/x86_64
+  自包含测试包）、`install-to.sh`（分发到远端 m2）、`accept-kmc.sh` / `accept-ca.sh`（KMC/CA 集成探针）；
+  数盾 aarch64 真机冒烟 14/14 PASS（见 `doc/SHUDUN-AARCH64-ACCEPTANCE.md`）。
 
 ### 1.1.3 (2026-08-29)
 
