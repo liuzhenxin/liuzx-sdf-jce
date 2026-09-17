@@ -206,6 +206,11 @@ Expected on a healthy device: all required checks [PASS], exit code 0, and
 strategy=SDF_OpenDevice (standard entry point). strategy=SDF_OpenDeviceWithPath or
 SDF_OpenDeviceEx means the standard call failed and a path extension was used.
 
+Note: a trailing "[FORCE] ... should close the device before exit" line is a one-time
+compliance reminder that the vendor library writes from its SDF_OpenDevice path and
+flushes late; it does not mean the device was left open. The runner closes the device
+explicitly before exit and logs "SDF_CloseDevice failed" only if closing fails.
+
 SECURITY: conf/ may contain device credentials/certificates. Do not share this
 bundle or commit it. The PIN passed via SMOKE_PIN is visible in the java argv.
 EOF
