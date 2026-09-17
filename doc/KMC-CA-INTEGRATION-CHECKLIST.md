@@ -12,9 +12,9 @@
    JDK 11 只能跑单机冒烟包。
 3. **厂商材料**：密码机库与配置不入库，只读挂载进容器。
 
-> ⚠️ **CA 版本必须先升级**：`liuzx-ca/pom.xml` 的 `dependencyManagement` 当前把 `liuzx-sdf-jce`
-> 固定为 **1.1.3**（`liuzx-pki-security` 传递的是 1.1.2）。若不改，CA 用的是**无本次修复**的旧版，
-> 数盾 aarch64 上仍会 `SDF_OpenDeviceEx` 探测失败。请改为 `1.1.4-SNAPSHOT`。
+> ✅ **CA 版本已升级**：`liuzx-ca/pom.xml` 的 `dependencyManagement` 已从 **1.1.3** 改为
+> **1.1.4-SNAPSHOT**（覆盖 `liuzx-pki-security` 传递的 1.1.2）。构建 CA 前确保该版本已发布到
+> 可解析的仓库（本地 `mvn install` 或 Nexus）。
 
 ---
 
@@ -82,9 +82,9 @@ curl -s "http://127.0.0.1:3443/api/v1/crypto-devices/status?refresh=true"   # �
 
 ## 2. CA 集成
 
-### 2.1 版本与构建
+### 2.1 构建
 ```bash
-# 1) 改 liuzx-ca/pom.xml dependencyManagement：liuzx-sdf-jce 1.1.3 -> 1.1.4-SNAPSHOT
+# liuzx-ca/pom.xml 已指向 liuzx-sdf-jce:1.1.4-SNAPSHOT（本次修改）
 cd liuzx-ca
 mvn -o package -DskipTests
 ```
@@ -130,7 +130,7 @@ CA 启动时会 `securityFactory.createSigner("sdf", conf, cert)`，内部会
 
 | 项 | KMC | CA |
 |---|---|---|
-| 版本 | `liuzx-sdf-jce:1.1.4-SNAPSHOT` | 同上（需先改 dependencyManagement） |
+| 版本 | `liuzx-sdf-jce:1.1.4-SNAPSHOT` | 同上（`pom.xml` 已指向 1.1.4-SNAPSHOT） |
 | 设备打开 | `SDF_OpenDevice`（标准优先） | 同 |
 | 多开告警 | 无 `[FORCE] 应用应仅打开一次…` | 同 |
 | 健康 | `readiness` 含 `hsm=UP` | 启动无设备错误 |
@@ -139,7 +139,7 @@ CA 启动时会 `securityFactory.createSigner("sdf", conf, cert)`，内部会
 
 ## 4. 常见坑
 
-- **CA 版本没改**：仍是 1.1.3，行为回退到修复前，数盾 aarch64 打开失败。
+- **CA 版本**：已改为 1.1.4-SNAPSHOT；若其他下游仍 pin 旧版，同样需升级才能拿到修复。
 - **Shudun 配置路径给了文件**：回退分支期望目录，应给目录或让标准调用读到默认位置。
 - **用 JDK 11 跑 KMC/CA**：`UnsupportedClassVersionError`（需 25）。
 - **把库/INI 提交进仓库**：属敏感材料，只挂载不提交。
