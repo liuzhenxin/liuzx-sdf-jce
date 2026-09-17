@@ -3,10 +3,9 @@
 # Build a portable SDF JCE smoke-test bundle for a target OS/architecture.
 #
 # The bundle is self-contained: it carries the provider jar, its Maven runtime
-# dependencies, the vendor native library (unless it is already bundled inside the
-# jar), the editable device config and a generated run-smoke.sh. Copy the tarball to
-# the machine that can reach the HSM, edit the device IP/port in conf/, then run
-# ./run-smoke.sh.
+# dependencies, the vendor native library, the editable device config and a generated
+# run-smoke.sh. Copy the tarball to the machine that can reach the HSM, edit the
+# device IP/port in conf/, then run ./run-smoke.sh.
 #
 # Usage:
 #   scripts/pack-smoke.sh
@@ -16,7 +15,7 @@
 #   PACK_ARCH          aarch64 | x86_64           (default: aarch64)
 #   PACK_LIBRARY_PATH  explicit native library    (required for Dysx aarch64)
 #   PACK_CONFIG_PATH   explicit config file/dir   (default: HSM material)
-#   PACK_OUT_DIR       output directory           (default: repo root)
+#   PACK_OUT_DIR       output directory           (default: repo target/)
 #   PACK_SKIP_BUILD=1  do not run 'mvn package'
 #   PACK_MAVEN_OPTS    extra maven flags          (default: -o -q)
 #
@@ -60,32 +59,38 @@ if [[ -z "${JAR}" || ! -d target/lib ]]; then
     exit 2
 fi
 
-# Resolve vendor material defaults. LIB_SOURCE is empty when the native library
-# already ships inside the provider jar (Shudun) or when PACK_LIBRARY_PATH is used.
+# Resolve vendor material. The native library is always copied into lib/ and passed
+# explicitly, so the bundle does not depend on extracting the copy inside the jar.
 LIB_SOURCE=""
 CONF_SOURCE=""
-# How the vendor config is passed on: a directory for SDF_OpenDeviceWithPath
-# (Shudun/SanSec) or a file for SDF_OpenDeviceEx (Dysx).
+# Directory for SDF_OpenDeviceWithPath (Shudun/SanSec) or file for SDF_OpenDeviceEx (Dysx).
 CONF_KIND="dir"
+# RSA struct ABI of the vendor (standard fixed-size or packed variable-size).
+RSA_LAYOUT="standard"
 
 case "${VENDOR_KEY}" in
     shudun)
-        # Shudun ships inside the jar for every supported platform.
-        if [[ "${PACK_ARCH}" == "aarch64" && -f "HSM/SHUDUN/SDF--aarch64-glibc2.31/sdhsm.ini" ]]; then
+        if [[ "${PACK_ARCH}" == "aarch64" ]]; then
+            LIB_SOURCE="HSM/SHUDUN/SDF--aarch64-glibc2.31/libsdhsmcrypto.so"
             CONF_SOURCE="HSM/SHUDUN/SDF--aarch64-glibc2.31/sdhsm.ini"
-        elif [[ -f "HSM/SHUDUN/1.4.2/conf/sdhsm.ini" ]]; then
+        fi
+        if [[ ! -f "${LIB_SOURCE:-/nonexistent}" && -f "HSM/SHUDUN/1.4.2/${PACK_ARCH}/linux/libsdhsmcrypto.so" ]]; then
+            LIB_SOURCE="HSM/SHUDUN/1.4.2/${PACK_ARCH}/linux/libsdhsmcrypto.so"
             CONF_SOURCE="HSM/SHUDUN/1.4.2/conf/sdhsm.ini"
         fi
+        RSA_LAYOUT="packed"
         CONF_KIND="dir"
         ;;
     sansec)
         LIB_SOURCE="HSM/SanSec/1.3.87/${PACK_ARCH}/linux/libswsds.so"
         CONF_SOURCE="HSM/SanSec/1.3.87/conf/swsds.ini"
+        RSA_LAYOUT="standard"
         CONF_KIND="dir"
         ;;
     dysx)
         LIB_SOURCE="HSM/DYSX/2.0/${PACK_ARCH}/linux/libsdf.so"
         CONF_SOURCE="HSM/DYSX/2.0/conf/cacipher.ini"
+        RSA_LAYOUT="standard"
         CONF_KIND="file"
         ;;
 esac
@@ -100,9 +105,9 @@ if [[ -d "${CONF_SOURCE}" ]]; then
     CONF_KIND="dir"
 fi
 
-if [[ -n "${LIB_SOURCE}" && ! -f "${LIB_SOURCE}" ]]; then
-    echo "[pack] ERROR: native library not found: ${LIB_SOURCE}" >&2
-    echo "[pack] Hint: for Dysx ${PACK_ARCH} set PACK_LIBRARY_PATH=/path/to/libsdf.so" >&2
+if [[ -z "${LIB_SOURCE}" || ! -f "${LIB_SOURCE}" ]]; then
+    echo "[pack] ERROR: native library not found: '${LIB_SOURCE:-<none>}'" >&2
+    echo "[pack] Hint: Dysx ${PACK_ARCH} is not in HSM/; set PACK_LIBRARY_PATH=/path/to/libsdf.so" >&2
     exit 2
 fi
 if [[ -z "${CONF_SOURCE}" || ! -e "${CONF_SOURCE}" ]]; then
@@ -120,17 +125,13 @@ mkdir -p "${STAGE}/${BUNDLE_NAME}/lib" "${STAGE}/${BUNDLE_NAME}/conf"
 cp "${JAR}" "${STAGE}/${BUNDLE_NAME}/"
 cp target/lib/*.jar "${STAGE}/${BUNDLE_NAME}/lib/"
 
-# Native library: copied only for vendors whose lib is external.
-LIB_BASENAME=""
-if [[ -n "${LIB_SOURCE}" ]]; then
-    LIB_BASENAME="$(basename "${LIB_SOURCE}")"
-    cp "${LIB_SOURCE}" "${STAGE}/${BUNDLE_NAME}/lib/${LIB_BASENAME}"
-fi
+LIB_BASENAME="$(basename "${LIB_SOURCE}")"
+cp "${LIB_SOURCE}" "${STAGE}/${BUNDLE_NAME}/lib/${LIB_BASENAME}"
 
 # Device config: copy the file, or the directory contents, into conf/.
 if [[ -d "${CONF_SOURCE}" ]]; then
     cp -R "${CONF_SOURCE}/." "${STAGE}/${BUNDLE_NAME}/conf/"
-    CONF_HINT="conf/ ($(basename "${CONF_SOURCE}"))"
+    CONF_HINT="conf/ (contains $(basename "${CONF_SOURCE}"))"
 else
     cp "${CONF_SOURCE}" "${STAGE}/${BUNDLE_NAME}/conf/"
     CONF_HINT="conf/$(basename "${CONF_SOURCE}")"
@@ -142,22 +143,6 @@ else
     CONF_PROPERTY="\${ROOT_DIR}/conf/$(basename "${CONF_SOURCE}")"
 fi
 
-if [[ -n "${LIB_BASENAME}" ]]; then
-    LIB_PROPERTY="JAVA_OPTS+=(\"-Dliuzx.sdf.library.path=\${ROOT_DIR}/lib/${LIB_BASENAME}\")"
-    LIB_HINT="lib/${LIB_BASENAME}"
-else
-    LIB_PROPERTY="# (native library bundled inside the provider jar)"
-    LIB_HINT="<bundled in jar>"
-fi
-
-# SanSec has no entry in the bundled profile; with an explicit library path the
-# profile is not used for loading, but getRsaKeyLayout() still consults it, so pin
-# the standard layout explicitly.
-EXTRA_PROPERTY=""
-if [[ "${VENDOR_KEY}" == "sansec" ]]; then
-    EXTRA_PROPERTY='JAVA_OPTS+=("-Dliuzx.sdf.rsa-key-layout=standard")'
-fi
-
 # --- generated runner ---------------------------------------------------------
 cat > "${STAGE}/${BUNDLE_NAME}/run-smoke.sh" <<EOF
 #!/usr/bin/env bash
@@ -167,7 +152,7 @@ cat > "${STAGE}/${BUNDLE_NAME}/run-smoke.sh" <<EOF
 set -euo pipefail
 
 ROOT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-JAR="\$(ls -1t "\${ROOT_DIR}"/liuzx-sdf-jce-*.jar 2>/dev/null | grep -vE -- '-(sources|javadoc)\\.jar\$' | head -n1 || true)"
+JAR="\$(ls -1t "\${ROOT_DIR}"/liuzx-sdf-jce-*.jar 2>/dev/null | grep -vE -- '-(sources|javadoc)\.jar\$' | head -n1 || true)"
 if [[ -z "\${JAR}" || ! -d "\${ROOT_DIR}/lib" ]]; then
     echo "ERROR: bundle incomplete (jar or lib missing)" >&2
     exit 2
@@ -181,8 +166,8 @@ if [[ ! "\${JAVA_MAJOR}" =~ ^[0-9]+\$ || "\${JAVA_MAJOR}" -lt 8 ]]; then
 fi
 
 JAVA_OPTS=(-Dfile.encoding=UTF-8 "-Dliuzx.sdf.vendor=${PACK_VENDOR}")
-${LIB_PROPERTY}
-${EXTRA_PROPERTY}
+JAVA_OPTS+=("-Dliuzx.sdf.library.path=\${ROOT_DIR}/lib/${LIB_BASENAME}")
+JAVA_OPTS+=("-Dliuzx.sdf.rsa-key-layout=${RSA_LAYOUT}")
 JAVA_OPTS+=("-Dliuzx.sdf.vendor-config.path=${CONF_PROPERTY}")
 [[ -n "\${SMOKE_SM2_SIGN_INDEX:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.sm2SignIndex=\${SMOKE_SM2_SIGN_INDEX}")
 [[ -n "\${SMOKE_RSA_SIGN_INDEX:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.rsaSignIndex=\${SMOKE_RSA_SIGN_INDEX}")
@@ -190,7 +175,7 @@ JAVA_OPTS+=("-Dliuzx.sdf.vendor-config.path=${CONF_PROPERTY}")
 [[ -n "\${SMOKE_PIN:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.pin=\${SMOKE_PIN}")
 
 echo "[smoke] bundle vendor=${PACK_VENDOR} arch=${PACK_ARCH}"
-echo "[smoke] library=${LIB_HINT}"
+echo "[smoke] library=lib/${LIB_BASENAME}  (rsaKeyLayout=${RSA_LAYOUT})"
 echo "[smoke] config=${CONF_HINT} (edit device IP/port here)"
 echo "[smoke] java: \$(java -version 2>&1 | head -n1)"
 echo
@@ -206,7 +191,7 @@ SDF JCE smoke bundle
 ====================
 vendor : ${PACK_VENDOR}
 arch   : ${PACK_ARCH}
-library: ${LIB_HINT}
+library: lib/${LIB_BASENAME} (rsaKeyLayout=${RSA_LAYOUT})
 config : ${CONF_HINT}
 
 1. Edit the device IP/port (and credentials, if any) in ${CONF_HINT}.
