@@ -173,6 +173,13 @@ if [[ -z "\${JAR}" || ! -d "\${ROOT_DIR}/lib" ]]; then
     exit 2
 fi
 
+JAVA_MAJOR="\$(java -version 2>&1 | head -n1 | sed -E 's/.*version "([0-9]+)(\.[0-9]+)?.*/\1/')"
+if [[ "\${JAVA_MAJOR}" == "1" ]]; then JAVA_MAJOR=8; fi
+if [[ ! "\${JAVA_MAJOR}" =~ ^[0-9]+\$ || "\${JAVA_MAJOR}" -lt 8 ]]; then
+    echo "ERROR: JDK 8 or newer is required (found: \$(java -version 2>&1 | head -n1))" >&2
+    exit 2
+fi
+
 JAVA_OPTS=(-Dfile.encoding=UTF-8 "-Dliuzx.sdf.vendor=${PACK_VENDOR}")
 ${LIB_PROPERTY}
 ${EXTRA_PROPERTY}
@@ -185,6 +192,7 @@ JAVA_OPTS+=("-Dliuzx.sdf.vendor-config.path=${CONF_PROPERTY}")
 echo "[smoke] bundle vendor=${PACK_VENDOR} arch=${PACK_ARCH}"
 echo "[smoke] library=${LIB_HINT}"
 echo "[smoke] config=${CONF_HINT} (edit device IP/port here)"
+echo "[smoke] java: \$(java -version 2>&1 | head -n1)"
 echo
 
 # Run from conf/ so the vendor's standard SDF_OpenDevice can read ./<vendor>.ini.
