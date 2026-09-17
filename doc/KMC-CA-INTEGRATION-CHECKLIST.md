@@ -6,7 +6,13 @@
 ## 0. 前置（两边共通）
 
 1. **构建产物**：修复版为 `1.1.4-SNAPSHOT`。先在本仓库 `mvn -o install -DskipTests`，或部署到
-   Nexus / 私有仓库，使下游构建可解析。
+   Nexus / 私有仓库，使下游构建可解析。向 KMC/CA 构建机分发可用本仓库脚本：
+   ```bash
+   # 构建并推送到远端 ~/.m2/repository（默认）
+   scripts/install-to.sh root@<build-host>
+   # 或指定远端仓库根
+   scripts/install-to.sh build@<build-host> /opt/maven-repo
+   ```
 2. **JDK 25**：KMC 与 CA 产物均为 Java 25 字节码，必须用 JDK 25 运行（KMC 镜像
    `eclipse-temurin:25-jre-jammy`，CA 镜像 `ghcr.io/graalvm/jdk-community:25.0.1`）。宿主机
    JDK 11 只能跑单机冒烟包。
@@ -22,6 +28,7 @@
 
 ### 1.1 构建
 ```bash
+# 若构建机还没有该版本：scripts/install-to.sh root@<kmc-build-host>
 cd liuzx-kmc
 mvn -o -pl liuzx-kmc-start -am package -DskipTests   # 解析到 liuzx-sdf-jce:1.1.4-SNAPSHOT
 ```
@@ -85,6 +92,7 @@ curl -s "http://127.0.0.1:3443/api/v1/crypto-devices/status?refresh=true"   # �
 ### 2.1 构建
 ```bash
 # liuzx-ca/pom.xml 已指向 liuzx-sdf-jce:1.1.4-SNAPSHOT（本次修改）
+# 若构建机还没有该版本：scripts/install-to.sh root@<ca-build-host>
 cd liuzx-ca
 mvn -o package -DskipTests
 ```
