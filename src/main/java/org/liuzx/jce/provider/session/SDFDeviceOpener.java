@@ -10,15 +10,15 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Opens an SDF device while tolerating vendor-specific entry points.
  *
- * <p>GM/T 0018-2012 only standardises {@link #OPEN_DEVICE}. Some vendors expose an
- * extended entry point ({@code SDF_OpenDeviceEx} for DYSX / {@code SDF_OpenDeviceWithPath}
- * for path-addressed devices) and JNA raises {@link UnsatisfiedLinkError} when an
- * invoked symbol is missing. This helper probes those optional symbols at runtime and
- * degrades to the standard call, so one JAR can drive DYSX, Shudun and SanSec devices.</p>
+ * <p>GM/T 0018-2012 only standardises {@link #OPEN_DEVICE}, which every vendor library
+ * exports, so the standard call is tried first. Only when it fails and a vendor config
+ * path was provided are the optional path-aware extensions probed
+ * ({@code SDF_OpenDeviceWithPath} then {@code SDF_OpenDeviceEx}); JNA raises
+ * {@link UnsatisfiedLinkError} when an invoked symbol is missing, which is treated as
+ * "extension unavailable".</p>
  *
- * <p>Only the vendor-extension lookup is treated as optional. If an extension exists
- * but returns an error code, the error is propagated unchanged so that DYSX behaviour
- * is not altered by the fallback.</p>
+ * <p>DYSX also exposes the standard {@code SDF_OpenDevice} (reading its default config),
+ * so no vendor is special-cased: the configured path is a fallback, not an override.</p>
  */
 public final class SDFDeviceOpener {
 
@@ -55,24 +55,16 @@ public final class SDFDeviceOpener {
      * @return the raw SDF return code, {@code 0} on success
      */
     public static int open(SDFLibrary sdf, Pointer[] phDeviceHandle, String vendorConfigPath) {
+        // Standard entry point, available in every vendor library.
+        int standardRv = sdf.SDF_OpenDevice(phDeviceHandle);
+        if (standardRv == 0) {
+            lastSuccessfulOperation = OPEN_DEVICE;
+            return 0;
+        }
         if (vendorConfigPath == null) {
-            int rv = sdf.SDF_OpenDevice(phDeviceHandle);
-            if (rv == 0) {
-                lastSuccessfulOperation = OPEN_DEVICE;
-            }
-            return rv;
+            return standardRv;
         }
-        if (isAvailable(OPEN_DEVICE_EX)) {
-            try {
-                int rv = sdf.SDF_OpenDeviceEx(phDeviceHandle, vendorConfigPath, Pointer.NULL);
-                if (rv == 0) {
-                    lastSuccessfulOperation = OPEN_DEVICE_EX;
-                }
-                return rv;
-            } catch (UnsatisfiedLinkError missing) {
-                markMissing(OPEN_DEVICE_EX, missing);
-            }
-        }
+        int extensionRv = standardRv;
         if (isAvailable(OPEN_DEVICE_WITH_PATH)) {
             try {
                 int rv = sdf.SDF_OpenDeviceWithPath(vendorConfigPath, phDeviceHandle);
@@ -80,20 +72,27 @@ public final class SDFDeviceOpener {
                     lastSuccessfulOperation = OPEN_DEVICE_WITH_PATH;
                     return 0;
                 }
-                // A vendor extension error must not block startup: some vendors expect a
-                // configuration directory here, while callers may supply an INI file.
-                logger.warn("{} failed (0x{}) for '{}'; falling back to {}", OPEN_DEVICE_WITH_PATH,
-                        Integer.toHexString(rv), vendorConfigPath, OPEN_DEVICE);
+                logger.warn("{} failed (0x{}) for '{}'", OPEN_DEVICE_WITH_PATH, Integer.toHexString(rv),
+                        vendorConfigPath);
+                extensionRv = rv;
             } catch (UnsatisfiedLinkError missing) {
                 markMissing(OPEN_DEVICE_WITH_PATH, missing);
             }
         }
-        logger.debug("Using {}; vendor config path '{}' will be ignored", OPEN_DEVICE, vendorConfigPath);
-        int rv = sdf.SDF_OpenDevice(phDeviceHandle);
-        if (rv == 0) {
-            lastSuccessfulOperation = OPEN_DEVICE;
+        if (isAvailable(OPEN_DEVICE_EX)) {
+            try {
+                int rv = sdf.SDF_OpenDeviceEx(phDeviceHandle, vendorConfigPath, Pointer.NULL);
+                if (rv == 0) {
+                    lastSuccessfulOperation = OPEN_DEVICE_EX;
+                    return 0;
+                }
+                logger.warn("{} failed (0x{}) for '{}'", OPEN_DEVICE_EX, Integer.toHexString(rv), vendorConfigPath);
+                extensionRv = rv;
+            } catch (UnsatisfiedLinkError missing) {
+                markMissing(OPEN_DEVICE_EX, missing);
+            }
         }
-        return rv;
+        return extensionRv;
     }
 
     private static boolean isAvailable(String symbol) {
@@ -102,8 +101,8 @@ public final class SDFDeviceOpener {
 
     private static void markMissing(String symbol, UnsatisfiedLinkError cause) {
         if (MISSING_SYMBOLS.add(symbol)) {
-            logger.info("SDF library does not export {} ({}); using standard {} instead", symbol,
-                    cause.getMessage(), OPEN_DEVICE);
+            logger.info("SDF library does not export {} ({}); ignoring optional extension", symbol,
+                    cause.getMessage());
         }
     }
 

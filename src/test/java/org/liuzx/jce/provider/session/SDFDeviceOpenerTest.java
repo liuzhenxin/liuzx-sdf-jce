@@ -10,7 +10,9 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,9 +28,8 @@ class SDFDeviceOpenerTest {
     @Test
     void nullConfigUsesStandardOpenDevice() {
         List<String> calls = new ArrayList<String>();
-        SDFLibrary sdf = library(calls, Collections.<String>emptySet());
 
-        int rv = SDFDeviceOpener.open(sdf, new Pointer[1], null);
+        int rv = SDFDeviceOpener.open(library(calls, empty(), emptyResults()), new Pointer[1], null);
 
         assertEquals(0, rv);
         assertEquals(Collections.singletonList("SDF_OpenDevice"), calls);
@@ -36,47 +37,34 @@ class SDFDeviceOpenerTest {
     }
 
     @Test
-    void configPathUsesExtendedEntryPointWhenAvailable() {
+    void standardOpenIsPreferredEvenWithConfigPath() {
         List<String> calls = new ArrayList<String>();
-        SDFLibrary sdf = library(calls, Collections.<String>emptySet());
 
-        int rv = SDFDeviceOpener.open(sdf, new Pointer[1], "/etc/hsm/vendor.ini");
+        int rv = SDFDeviceOpener.open(library(calls, empty(), emptyResults()), new Pointer[1], "/etc/hsm/vendor.ini");
 
         assertEquals(0, rv);
-        assertEquals(Collections.singletonList("SDF_OpenDeviceEx"), calls);
-        assertEquals("SDF_OpenDeviceEx", SDFDeviceOpener.getLastSuccessfulOperation());
-    }
-
-    @Test
-    void missingExtendedEntryPointFallsBackToStandardAndCachesMiss() {
-        List<String> calls = new ArrayList<String>();
-        SDFLibrary sdf = library(calls,
-                new java.util.HashSet<String>(Arrays.asList("SDF_OpenDeviceEx", "SDF_OpenDeviceWithPath")));
-
-        assertEquals(0, SDFDeviceOpener.open(sdf, new Pointer[1], "/etc/hsm/vendor.ini"));
-        assertEquals(0, SDFDeviceOpener.open(sdf, new Pointer[1], "/etc/hsm/vendor.ini"));
-
-        // First call probes Ex and WithPath (both fail) then falls back; later calls skip the extensions.
-        assertEquals(Arrays.asList("SDF_OpenDeviceEx", "SDF_OpenDeviceWithPath", "SDF_OpenDevice",
-                "SDF_OpenDevice"), calls);
+        assertEquals(Collections.singletonList("SDF_OpenDevice"), calls);
         assertEquals("SDF_OpenDevice", SDFDeviceOpener.getLastSuccessfulOperation());
     }
 
     @Test
-    void missingExtendedEntryPointFallsBackToWithPathWhenExported() {
+    void standardFailureUsesWithPathWhenExported() {
         List<String> calls = new ArrayList<String>();
-        SDFLibrary sdf = library(calls, Collections.singleton("SDF_OpenDeviceEx"));
+        Map<String, Integer> results = new HashMap<String, Integer>();
+        results.put("SDF_OpenDevice", 0x01000112);
 
-        int rv = SDFDeviceOpener.open(sdf, new Pointer[1], "/etc/hsm/vendor.ini");
+        int rv = SDFDeviceOpener.open(library(calls, empty(), results), new Pointer[1], "/etc/shudun");
 
         assertEquals(0, rv);
-        assertEquals(Arrays.asList("SDF_OpenDeviceEx", "SDF_OpenDeviceWithPath"), calls);
+        assertEquals(Arrays.asList("SDF_OpenDevice", "SDF_OpenDeviceWithPath"), calls);
         assertEquals("SDF_OpenDeviceWithPath", SDFDeviceOpener.getLastSuccessfulOperation());
     }
 
     @Test
     void withPathReceivesConfigPathFirstAndHandleSecond() {
         final List<Object> captured = new ArrayList<Object>();
+        final Map<String, Integer> results = new HashMap<String, Integer>();
+        results.put("SDF_OpenDevice", 0x01000112);
         SDFLibrary sdf = (SDFLibrary) Proxy.newProxyInstance(SDFLibrary.class.getClassLoader(),
                 new Class<?>[] {SDFLibrary.class}, (proxy, method, args) -> {
                     if (method.getDeclaringClass() == Object.class) {
@@ -87,10 +75,7 @@ class SDFDeviceOpenerTest {
                         captured.add(args[1]);
                         return 0;
                     }
-                    if ("SDF_OpenDeviceEx".equals(method.getName())) {
-                        throw new UnsatisfiedLinkError("missing");
-                    }
-                    return 0;
+                    return results.getOrDefault(method.getName(), 0);
                 });
 
         Pointer[] handle = new Pointer[1];
@@ -99,51 +84,69 @@ class SDFDeviceOpenerTest {
     }
 
     @Test
-    void withPathErrorFallsBackToStandardOpenDevice() {
-        final List<String> calls = new ArrayList<String>();
-        SDFLibrary sdf = (SDFLibrary) Proxy.newProxyInstance(SDFLibrary.class.getClassLoader(),
-                new Class<?>[] {SDFLibrary.class}, (proxy, method, args) -> {
-                    if (method.getDeclaringClass() == Object.class) {
-                        return objectMethod(proxy, method.getName(), args);
-                    }
-                    calls.add(method.getName());
-                    if ("SDF_OpenDeviceEx".equals(method.getName())) {
-                        throw new UnsatisfiedLinkError("missing");
-                    }
-                    if ("SDF_OpenDeviceWithPath".equals(method.getName())) {
-                        return 0x01000112;
-                    }
-                    return 0;
-                });
+    void standardAndWithPathFailureUsesExtendedEntryPoint() {
+        List<String> calls = new ArrayList<String>();
+        Map<String, Integer> results = new HashMap<String, Integer>();
+        results.put("SDF_OpenDevice", 0x01000112);
 
-        int rv = SDFDeviceOpener.open(sdf, new Pointer[1], "/etc/hsm/vendor.ini");
+        int rv = SDFDeviceOpener.open(library(calls, Collections.singleton("SDF_OpenDeviceWithPath"), results),
+                new Pointer[1], "/etc/vendor/cacipher.ini");
 
         assertEquals(0, rv);
-        assertEquals(Arrays.asList("SDF_OpenDeviceEx", "SDF_OpenDeviceWithPath", "SDF_OpenDevice"), calls);
+        assertEquals(Arrays.asList("SDF_OpenDevice", "SDF_OpenDeviceWithPath", "SDF_OpenDeviceEx"), calls);
+        assertEquals("SDF_OpenDeviceEx", SDFDeviceOpener.getLastSuccessfulOperation());
     }
 
     @Test
-    void extendedEntryPointErrorCodeIsPropagatedWithoutFallback() {
-        final List<String> calls = new ArrayList<String>();
-        SDFLibrary sdf = (SDFLibrary) Proxy.newProxyInstance(SDFLibrary.class.getClassLoader(),
-                new Class<?>[] {SDFLibrary.class}, (proxy, method, args) -> {
-                    if (method.getDeclaringClass() == Object.class) {
-                        return objectMethod(proxy, method.getName(), args);
-                    }
-                    calls.add(method.getName());
-                    if ("SDF_OpenDeviceEx".equals(method.getName())) {
-                        return 0x01000403;
-                    }
-                    return 0;
-                });
+    void missingExtensionsAreProbedOnceAndCached() {
+        List<String> calls = new ArrayList<String>();
+        Map<String, Integer> results = new HashMap<String, Integer>();
+        results.put("SDF_OpenDevice", 0x01000112);
+        SDFLibrary sdf = library(calls,
+                new java.util.HashSet<String>(Arrays.asList("SDF_OpenDeviceWithPath", "SDF_OpenDeviceEx")), results);
 
-        int rv = SDFDeviceOpener.open(sdf, new Pointer[1], "/etc/hsm/vendor.ini");
+        assertEquals(0x01000112, SDFDeviceOpener.open(sdf, new Pointer[1], "/etc/hsm/vendor.ini"));
+        assertEquals(0x01000112, SDFDeviceOpener.open(sdf, new Pointer[1], "/etc/hsm/vendor.ini"));
 
-        assertEquals(0x01000403, rv);
-        assertEquals(Collections.singletonList("SDF_OpenDeviceEx"), calls);
+        assertEquals(Arrays.asList("SDF_OpenDevice", "SDF_OpenDeviceWithPath", "SDF_OpenDeviceEx",
+                "SDF_OpenDevice"), calls);
     }
 
-    private static SDFLibrary library(final List<String> calls, final Set<String> missingSymbols) {
+    @Test
+    void extensionErrorCodeIsReturnedWhenEveryAttemptFails() {
+        List<String> calls = new ArrayList<String>();
+        Map<String, Integer> results = new HashMap<String, Integer>();
+        results.put("SDF_OpenDevice", 0x01000112);
+        results.put("SDF_OpenDeviceWithPath", 0x01000113);
+
+        int rv = SDFDeviceOpener.open(library(calls, Collections.singleton("SDF_OpenDeviceEx"), results),
+                new Pointer[1], "/etc/hsm/vendor.ini");
+
+        assertEquals(0x01000113, rv);
+    }
+
+    @Test
+    void standardFailureWithoutConfigReturnsStandardError() {
+        List<String> calls = new ArrayList<String>();
+        Map<String, Integer> results = new HashMap<String, Integer>();
+        results.put("SDF_OpenDevice", 0x01000112);
+
+        int rv = SDFDeviceOpener.open(library(calls, empty(), results), new Pointer[1], null);
+
+        assertEquals(0x01000112, rv);
+        assertEquals(Collections.singletonList("SDF_OpenDevice"), calls);
+    }
+
+    private static Map<String, Integer> emptyResults() {
+        return Collections.emptyMap();
+    }
+
+    private static Set<String> empty() {
+        return Collections.emptySet();
+    }
+
+    private static SDFLibrary library(final List<String> calls, final Set<String> missingSymbols,
+            final Map<String, Integer> results) {
         return (SDFLibrary) Proxy.newProxyInstance(SDFLibrary.class.getClassLoader(),
                 new Class<?>[] {SDFLibrary.class}, (proxy, method, args) -> {
                     if (method.getDeclaringClass() == Object.class) {
@@ -151,23 +154,22 @@ class SDFDeviceOpenerTest {
                     }
                     calls.add(method.getName());
                     if (missingSymbols.contains(method.getName())) {
-                        throw new UnsatisfiedLinkError(
-                                "Error looking up function '" + method.getName() + "'");
+                        throw new UnsatisfiedLinkError("Error looking up function '" + method.getName() + "'");
                     }
-                    return 0;
+                    return results.getOrDefault(method.getName(), 0);
                 });
     }
 
     private static Object objectMethod(Object proxy, String name, Object[] args) {
-        switch (name) {
-            case "toString":
-                return "SDFLibraryStub";
-            case "hashCode":
-                return System.identityHashCode(proxy);
-            case "equals":
-                return proxy == args[0];
-            default:
-                return null;
+        if ("toString".equals(name)) {
+            return "SDFLibraryStub";
         }
+        if ("hashCode".equals(name)) {
+            return System.identityHashCode(proxy);
+        }
+        if ("equals".equals(name)) {
+            return proxy == args[0];
+        }
+        return null;
     }
 }

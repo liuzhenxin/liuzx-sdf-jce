@@ -80,14 +80,24 @@ public class SDFSessionManagerLifecycleTest {
     }
 
     @Test
-    public void configuredVendorFileUsesOpenDeviceEx() throws Exception {
+    public void configuredVendorFileFallsBackToExtendedOpenDeviceWhenStandardFails() throws Exception {
+        SDFDeviceOpener.resetCapabilities();
         Path config = Files.createTempFile("sdf-vendor-", ".ini");
         System.setProperty(SDFConfig.VENDOR_CONFIG_PATH_PROPERTY, config.toString());
         AtomicReference<String> receivedConfigPath = new AtomicReference<String>();
+        AtomicInteger standardOpenCalls = new AtomicInteger();
         SDFLibrary library = (SDFLibrary) Proxy.newProxyInstance(
                 SDFLibrary.class.getClassLoader(),
                 new Class<?>[]{SDFLibrary.class},
                 (proxy, method, args) -> {
+                    if ("SDF_OpenDevice".equals(method.getName())) {
+                        // Standard-first: tried once, rejected so the path-aware extension runs.
+                        standardOpenCalls.incrementAndGet();
+                        return 0x01000112;
+                    }
+                    if ("SDF_OpenDeviceWithPath".equals(method.getName())) {
+                        throw new UnsatisfiedLinkError("Error looking up function 'SDF_OpenDeviceWithPath'");
+                    }
                     if ("SDF_OpenDeviceEx".equals(method.getName())) {
                         ((Pointer[]) args[0])[0] = new Pointer(10);
                         receivedConfigPath.set((String) args[1]);
@@ -97,9 +107,6 @@ public class SDFSessionManagerLifecycleTest {
                         ((Pointer[]) args[1])[0] = new Pointer(11);
                         return 0;
                     }
-                    if ("SDF_OpenDevice".equals(method.getName())) {
-                        throw new AssertionError("SDF_OpenDevice must not be used when a config path is set");
-                    }
                     return method.getReturnType() == Integer.TYPE ? 0 : null;
                 });
         SDFSessionManager manager = newManager(library);
@@ -108,6 +115,7 @@ public class SDFSessionManagerLifecycleTest {
         openSession.setAccessible(true);
         SDFSession session = (SDFSession) openSession.invoke(manager);
 
+        assertEquals(1, standardOpenCalls.get());
         assertEquals(config.toRealPath().toString(), receivedConfigPath.get());
         session.destroy();
         manager.shutdown();

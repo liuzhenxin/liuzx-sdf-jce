@@ -33,10 +33,10 @@
 
 ### 1.1.4-SNAPSHOT
 
-- **标准 SDF 设备打开兼容**：`SDF_OpenDeviceEx` 改为运行时探测的可选厂商扩展；缺失时自动回退到
-  `SDF_OpenDeviceWithPath`（若导出）或标准 `SDF_OpenDevice`。数盾 / SanSec 等仅导出
-  `SDF_OpenDevice` / `SDF_OpenDeviceWithPath` 的库不再因 `Error looking up function 'SDF_OpenDeviceEx'`
-  导致设备探测失败。DYSX（导出 `SDF_OpenDeviceEx`）行为保持不变，扩展返回的错误码原样透传，不触发回退。
+- **标准 SDF 设备打开**：始终先调用标准 `SDF_OpenDevice`（三家厂商均导出），仅在失败且配置了
+  `liuzx.sdf.vendor-config.path` 时才探测路径扩展 `SDF_OpenDeviceWithPath` → `SDF_OpenDeviceEx`。
+  数盾 / SanSec 不再因 `Error looking up function 'SDF_OpenDeviceEx'` 导致设备探测失败；DYSX 也走
+  标准接口，厂商不再被特判。实现改为**运行时能力探测**，与厂商名解耦。
 - **修正库回退开关**：`liuzx.sdf.library.fallback-enabled=true` 不再被显式
   `liuzx.sdf.library.path` 屏蔽，显式路径加载失败时仍可回退短名探测。
 - **厂商扩展去硬依赖**：`SDF_Encrypt_Index` / `SDF_Decrypt_Index` 标记为废弃扩展，仅保留给按厂商
@@ -132,6 +132,7 @@ SMOKE_VENDOR=Shudun ./scripts/sdf-smoke.sh
 SMOKE_VENDOR=SanSec \
 SMOKE_LIBRARY_PATH=/opt/hsm/lib/libswsds.so \
 SMOKE_CONFIG_PATH=/opt/hsm/conf \
+# 标准调用失败时，可断言实际生效的回退函数
 SMOKE_EXPECT_STRATEGY=SDF_OpenDeviceWithPath \
   ./scripts/sdf-smoke.sh
 
@@ -211,9 +212,10 @@ java -Dliuzx.sdf.profile.path=/etc/liuzx/sdf-profile.json \
 运行时校验 SHA-256 后提取到权限受限的临时目录，并在当前 JVM 内复用。若厂商库还依赖同目录中的其他
 原生库，生产部署应使用外部目录和 `liuzx.sdf.library.path`。
 
-厂商设备打开扩展会自动探测：优先 `SDF_OpenDeviceEx`（DYSX，接收 INI 文件），缺失时尝试
-`SDF_OpenDeviceWithPath`（数盾 aarch64 / SanSec，接收配置目录），仍不可用时回退标准
-`SDF_OpenDevice`。配置路径属性因此同时接受文件和目录：
+厂商设备打开采用**标准优先、扩展补救**：先调用标准 `SDF_OpenDevice`；若失败且配置了
+`liuzx.sdf.vendor-config.path`，再按能力探测 `SDF_OpenDeviceWithPath`（数盾 aarch64 / SanSec，
+接收配置目录）与 `SDF_OpenDeviceEx`（DYSX，接收 INI 文件）。因此正常运行时生效的一律是标准
+`SDF_OpenDevice`，配置路径只在标准调用失败后生效。配置路径属性同时接受文件和目录：
 
 ```bash
 # DYSX: INI 文件
