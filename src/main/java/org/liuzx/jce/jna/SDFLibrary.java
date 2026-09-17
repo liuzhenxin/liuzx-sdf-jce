@@ -28,6 +28,16 @@ public interface SDFLibrary extends Library {
     int SDF_GetPrivateKeyAccessRight(Pointer hSessionHandle, int uiKeyIndex, byte[] pucPassword, int uiPwdLength);
     int SDF_ReleasePrivateKeyAccessRight(Pointer hSessionHandle, int uiKeyIndex);
     int SDF_OpenDeviceEx(Pointer[] phDeviceHandle, String iniPath, Pointer pconf);
+    /**
+     * Vendor extension for path-addressed devices. Not every SDF library exports it;
+     * resolve it through {@code SDFDeviceOpener} so a missing symbol degrades to
+     * {@link #SDF_OpenDevice(Pointer[])} instead of failing.
+     *
+     * <p>Verified argument order (Shudun aarch64, SanSec x86_64/aarch64) is
+     * {@code (configPath, phDeviceHandle)} where {@code configPath} is a vendor
+     * configuration directory; passing {@code null} selects the vendor default.</p>
+     */
+    int SDF_OpenDeviceWithPath(String configPath, Pointer[] phDeviceHandle);
     int SDF_Echo(Pointer hSessionHandle, byte[] inData, int inDataLen, byte[] outData, IntByReference outDataLen);
 
     // =========================================================================
@@ -181,8 +191,20 @@ public interface SDFLibrary extends Library {
             byte[] pucData, int uiDataLength, byte[] pucEncData, IntByReference puiEncDataLength);
     int SDF_Decrypt(Pointer hSessionHandle, Pointer hKeyHandle, int uiAlgID, byte[] pucIV,
             byte[] pucEncData, int uiEncDataLength, byte[] pucData, IntByReference puiDataLength);
+    /**
+     * Vendor extension that combines key import and encryption. Prefer
+     * {@code SDF_Encrypt} with a resolved key handle; keep this only for vendors that
+     * genuinely export it so a missing symbol never becomes a hard dependency.
+     * @deprecated use {@code SDF_Encrypt} after resolving the key handle
+     */
+    @Deprecated
     int SDF_Encrypt_Index(Pointer hSessionHandle, int uiAlgID, byte[] pucIV, int uiKeyIndex,
             byte[] pucData, int uiDataLength, byte[] pucEncData, IntByReference puiEncDataLength);
+    /**
+     * @deprecated use {@code SDF_Decrypt} after resolving the key handle
+     * @see #SDF_Encrypt_Index(Pointer, int, byte[], int, byte[], int, byte[], IntByReference)
+     */
+    @Deprecated
     int SDF_Decrypt_Index(Pointer hSessionHandle, int uiAlgID, byte[] pucIV, int uiKeyIndex,
             byte[] pucEncData, int uiEncDataLength, byte[] pucData, IntByReference puiDataLength);
     int SDF_InternalEncrypt(Pointer hSessionHandle, int uiAlgID, int uiKeyIndex, byte[] pucIV,

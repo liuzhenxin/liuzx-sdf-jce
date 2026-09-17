@@ -108,7 +108,8 @@ public class SDFSessionManager {
 	}
 
 	/**
-	 * 打开一个新的 SDF 设备会话（SDF_OpenDevice + SDF_OpenSession）。
+	 * 打开一个新的 SDF 设备会话（标准 SDF_OpenDevice，或厂商可选的 SDF_OpenDeviceEx /
+	 * SDF_OpenDeviceWithPath 扩展；扩展缺失时自动回退）。
 	 * @return 新会话，失败返回 null
 	 */
 	private SDFSession openSession() {
@@ -116,11 +117,10 @@ public class SDFSessionManager {
 		try {
 			Pointer[] phDeviceHandle = new Pointer[1];
 			String configPath = SDFConfig.getInstance().getConfigPath();
-			int rv = configPath == null
-					? sdfLibrary.SDF_OpenDevice(phDeviceHandle)
-					: sdfLibrary.SDF_OpenDeviceEx(phDeviceHandle, configPath, Pointer.NULL);
+			int rv = SDFDeviceOpener.open(sdfLibrary, phDeviceHandle, configPath);
 			if (rv != 0) {
-				logger.warn("{} failed: {}", configPath == null ? "SDF_OpenDevice" : "SDF_OpenDeviceEx", rv);
+				logger.warn("SDF device open failed (configPath={}): {}",
+						configPath == null ? "<none>" : configPath, rv);
 				return null;
 			}
 			deviceHandle = phDeviceHandle[0];

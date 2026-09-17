@@ -19,7 +19,7 @@
   - **ECDSA / EdDSA / DSA**: 内部密钥对的签名与验签（`SHA256withECDSA` / `EdDSA` / `SHA1withDSA`）。**注意：实测数盾 SDF 库不导出 `SDF_GenerateKeyPair_ECDSA/EDDSA/DSA` 等函数，这三个算法在数盾设备上不可用**；需使用导出这些函数的厂商库（如 Dysx）。
   - **摘要/HMAC**: SHA-1/SHA-224/SHA-256/SHA-384/SHA-512/MD5（硬件）、HmacSM3/HmacSHA1/HmacSHA256/HmacSHA512。
 - **硬件密钥支持**: 支持使用存储在密码设备内部的 SM2/RSA/SM4 密钥进行密码运算，私钥永不离开硬件。
-- **数盾 (Shudun) 厂商支持**: 内置数盾 SDF 动态库（Linux x86_64 / Windows x86_64），通过 `classpath:` 机制随 JAR 打包分发，无需手动安装动态库即可使用。**注：数盾 SDF 库按变长布局读写 RSA 结构体**（bits + m[kb] + e[kb] + d[kb] + CRT 子区间），≤2048 位密钥各子区间整体平移，4096 位占满标准 `m[512]/e[512]` 结构；本 Provider 已按该布局适配（转换统一在 `RSAKeyConverter`），支持最大 4096 位。
+- **数盾 (Shudun) 厂商支持**: 内置数盾 SDF 动态库（Linux x86_64 / Linux aarch64 / Windows x86_64），通过 `classpath:` 机制随 JAR 打包分发，无需手动安装动态库即可使用。**注：数盾 SDF 库按变长布局读写 RSA 结构体**（bits + m[kb] + e[kb] + d[kb] + CRT 子区间），≤2048 位密钥各子区间整体平移，4096 位占满标准 `m[512]/e[512]` 结构；本 Provider 已按该布局适配（转换统一在 `RSAKeyConverter`），支持最大 4096 位。
 - **跨平台**: 通过配置文件支持在不同操作系统和CPU架构（Linux/Windows/macOS, x86_64/aarch64）下加载对应的SDF动态库。
 - **可配置的日志系统**: 内置一个无第三方依赖的日志系统，支持通过配置文件开关、设置级别和输出路径。
 - **国际化**: 演示程序支持中英文切换。
@@ -29,7 +29,21 @@
 
 ## 📋 版本说明
 
-**当前版本: 1.1.3**（2026-08-29）
+**当前版本: 1.1.4-SNAPSHOT**
+
+### 1.1.4-SNAPSHOT
+
+- **标准 SDF 设备打开兼容**：`SDF_OpenDeviceEx` 改为运行时探测的可选厂商扩展；缺失时自动回退到
+  `SDF_OpenDeviceWithPath`（若导出）或标准 `SDF_OpenDevice`。数盾 / SanSec 等仅导出
+  `SDF_OpenDevice` / `SDF_OpenDeviceWithPath` 的库不再因 `Error looking up function 'SDF_OpenDeviceEx'`
+  导致设备探测失败。DYSX（导出 `SDF_OpenDeviceEx`）行为保持不变，扩展返回的错误码原样透传，不触发回退。
+- **修正库回退开关**：`liuzx.sdf.library.fallback-enabled=true` 不再被显式
+  `liuzx.sdf.library.path` 屏蔽，显式路径加载失败时仍可回退短名探测。
+- **厂商扩展去硬依赖**：`SDF_Encrypt_Index` / `SDF_Decrypt_Index` 标记为废弃扩展，仅保留给按厂商
+  能力门控的调用方（如 DYSX），其余场景统一使用标准 `SDF_Encrypt` / `SDF_Decrypt` + key handle 解析。
+- **内部密钥公钥可导出**：内部 SM2 密钥的 X.509 公钥编码恢复，便于生成 CSR / 证书（私钥仍在硬件内）。
+- **随包数盾 aarch64 库**：内置 profile 新增 `Shudun.platforms.linux.aarch64`，并随 JAR 分发
+  `native/shudun/linux-aarch64/libsdhsmcrypto.so`（SHA-256 校验）。
 
 ### 1.1.3 (2026-08-29)
 
@@ -161,17 +175,23 @@ java -Dliuzx.sdf.profile.path=/etc/liuzx/sdf-profile.json \
 ```
 
 动态库选择优先级为：`liuzx.sdf.library.path` → 外部 profile → 内置 profile。
-`liuzx.sdf.vendor` 可覆盖 profile 的 `defaultVendor`。短名称回退默认关闭；只有在没有显式库路径时，
-才可通过 `-Dliuzx.sdf.library.fallback-enabled=true` 启用。
+`liuzx.sdf.vendor` 可覆盖 profile 的 `defaultVendor`。短名称回退默认关闭，可通过
+`-Dliuzx.sdf.library.fallback-enabled=true` 启用（显式库路径不再屏蔽回退）。
 
-`Shudun` 原生库位于 `src/main/resources/native/shudun/`，运行时校验 SHA-256 后提取到权限受限的
-临时目录，并在当前 JVM 内复用。若厂商库还依赖同目录中的其他原生库，生产部署应使用外部目录和
-`liuzx.sdf.library.path`。
+`Shudun` 原生库位于 `src/main/resources/native/shudun/`（Linux x86_64 / aarch64、Windows x86_64），
+运行时校验 SHA-256 后提取到权限受限的临时目录，并在当前 JVM 内复用。若厂商库还依赖同目录中的其他
+原生库，生产部署应使用外部目录和 `liuzx.sdf.library.path`。
 
-如需向厂商扩展接口 `SDF_OpenDeviceEx` 传入 INI 文件，使用：
+厂商设备打开扩展会自动探测：优先 `SDF_OpenDeviceEx`（DYSX，接收 INI 文件），缺失时尝试
+`SDF_OpenDeviceWithPath`（数盾 aarch64 / SanSec，接收配置目录），仍不可用时回退标准
+`SDF_OpenDevice`。配置路径属性因此同时接受文件和目录：
 
 ```bash
--Dliuzx.sdf.vendor-config.path=/etc/vendor/device.ini
+# DYSX: INI 文件
+-Dliuzx.sdf.vendor-config.path=/etc/vendor/cacipher.ini
+
+# 数盾 / SanSec: 包含 sdhsm.ini / swsds.ini 的配置目录
+-Dliuzx.sdf.vendor-config.path=/etc/hsm/conf
 ```
 
 旧属性 `liuzx.sdf.config.path` 仍兼容，但已不推荐使用。

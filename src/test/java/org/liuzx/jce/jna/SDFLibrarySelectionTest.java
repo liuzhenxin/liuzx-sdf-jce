@@ -30,10 +30,31 @@ public class SDFLibrarySelectionTest {
     }
 
     @Test
-    public void explicitPathFailureNeverAttemptsShortNameFallback() throws IOException {
+    public void explicitPathFailureFallsBackToShortNameWhenOptedIn() throws IOException {
         Path explicitLibrary = Files.createTempFile(temporaryDirectory, "vendor-sdf-", ".so");
         System.setProperty(SDFConfig.LIBRARY_PATH_PROPERTY, explicitLibrary.toString());
         System.setProperty(SDFConfig.LIBRARY_FALLBACK_ENABLED_PROPERTY, "true");
+        List<String> loadAttempts = new ArrayList<String>();
+        SDFLibrary fallbackLibrary = dummyLibrary();
+
+        SDFLibrary selected = SDFLibraryLoader.loadLibrary(SDFConfig.getInstance(), path -> {
+            loadAttempts.add(path);
+            if ("sdcrypto4j".equals(path)) {
+                return fallbackLibrary;
+            }
+            throw new UnsatisfiedLinkError("test load failure");
+        });
+
+        assertSame(fallbackLibrary, selected);
+        assertEquals(2, loadAttempts.size());
+        assertEquals(explicitLibrary.toRealPath().toString(), loadAttempts.get(0));
+        assertEquals("sdcrypto4j", loadAttempts.get(1));
+    }
+
+    @Test
+    public void explicitPathFailureDoesNotFallbackWithoutOptIn() throws IOException {
+        Path explicitLibrary = Files.createTempFile(temporaryDirectory, "vendor-sdf-", ".so");
+        System.setProperty(SDFConfig.LIBRARY_PATH_PROPERTY, explicitLibrary.toString());
         List<String> loadAttempts = new ArrayList<String>();
 
         assertThrows(RuntimeException.class,

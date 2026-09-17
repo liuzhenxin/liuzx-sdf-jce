@@ -88,15 +88,22 @@ public class SDFConfig {
         return trimToNull(System.getProperty(LIBRARY_PATH_PROPERTY)) != null;
     }
 
-    /** Short-name discovery is opt-in and cannot override an explicit path. */
+    /**
+     * Short-name discovery is opt-in. An explicit library path no longer suppresses the
+     * fallback: when the configured path cannot be loaded, operators can still recover
+     * through {@code java.library.path} / {@code jna.library.path}.
+     */
     public boolean isLibraryFallbackEnabled() {
-        return !hasExplicitLibraryPath()
-                && Boolean.parseBoolean(trimToNull(System.getProperty(LIBRARY_FALLBACK_ENABLED_PROPERTY)));
+        return Boolean.parseBoolean(trimToNull(System.getProperty(LIBRARY_FALLBACK_ENABLED_PROPERTY)));
     }
 
     /**
-     * Returns the optional vendor INI file passed to SDF_OpenDeviceEx. The clearer
-     * vendor-config property takes precedence over the legacy config property.
+     * Returns the optional vendor configuration path passed to the device-open
+     * extension. The clearer vendor-config property takes precedence over the legacy
+     * config property.
+     *
+     * <p>The path may be a regular file (DYSX {@code SDF_OpenDeviceEx} INI file) or a
+     * directory (Shudun / SanSec {@code SDF_OpenDeviceWithPath} config directory).</p>
      */
     public String getConfigPath() {
         String path = trimToNull(System.getProperty(VENDOR_CONFIG_PATH_PROPERTY));
@@ -107,7 +114,7 @@ public class SDFConfig {
         }
         return path == null
                 ? null
-                : validateSystemPropertyFile(propertyName, "SDF vendor configuration", path);
+                : validateSystemPropertyPath(propertyName, "SDF vendor configuration", path);
     }
 
     public String getCurrentOs() {
@@ -331,6 +338,36 @@ public class SDFConfig {
                     + "' must be an absolute filesystem path: " + path);
         }
         return validateExistingFile(description + " configured by '" + propertyName + "'", file);
+    }
+
+    private String validateSystemPropertyPath(String propertyName, String description, String path) {
+        final Path file;
+        try {
+            file = Paths.get(path);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("System property '" + propertyName
+                    + "' is not a valid filesystem path: " + path, e);
+        }
+        if (!file.isAbsolute()) {
+            throw new IllegalArgumentException("System property '" + propertyName
+                    + "' must be an absolute filesystem path: " + path);
+        }
+        Path normalized = file.normalize();
+        if (!Files.exists(normalized)) {
+            throw new IllegalArgumentException(description + " configured by '" + propertyName
+                    + "' does not exist: " + normalized);
+        }
+        try {
+            normalized = normalized.toRealPath();
+        } catch (IOException e) {
+            throw new IllegalArgumentException(description + " configured by '" + propertyName
+                    + "' cannot be resolved: " + normalized, e);
+        }
+        if (!Files.isReadable(normalized)) {
+            throw new IllegalArgumentException(description + " configured by '" + propertyName
+                    + "' is not readable: " + normalized);
+        }
+        return normalized.toString();
     }
 
     private String validateExistingFile(String description, Path file) {

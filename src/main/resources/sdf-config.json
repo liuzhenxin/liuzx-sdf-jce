@@ -23,6 +23,11 @@
             "path": "classpath:native/shudun/linux-x86_64/libsdhsmcrypto.so",
             "sha256": "cfca94c2fe127051f0335da5c88f2bdef750276f0b68f15feec6d8b544e355a6",
             "rsaKeyLayout": "packed"
+          },
+          "aarch64": {
+            "path": "classpath:native/shudun/linux-aarch64/libsdhsmcrypto.so",
+            "sha256": "19306e226e680fb440269257bf2888b2bdb6beec8aae469dcde32cfc6778253b",
+            "rsaKeyLayout": "packed"
           }
         },
         "windows": {

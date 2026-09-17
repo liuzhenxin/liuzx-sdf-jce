@@ -33,10 +33,8 @@ final class SDFLibraryLoader {
                 System.err.println("[SDFLibrary] Caused by: " + firstError.getCause());
             }
             if (!config.isLibraryFallbackEnabled()) {
-                String reason = config.hasExplicitLibraryPath()
-                        ? "an explicit library path is authoritative"
-                        : "short-name fallback is disabled; set '"
-                                + SDFConfig.LIBRARY_FALLBACK_ENABLED_PROPERTY + "=true' to enable it";
+                String reason = "short-name fallback is disabled; set '"
+                        + SDFConfig.LIBRARY_FALLBACK_ENABLED_PROPERTY + "=true' to enable it";
                 throw new RuntimeException(
                         "Failed to load SDF native library. Path='" + path + "' and " + reason
                                 + ". java.library.path='" + System.getProperty("java.library.path")

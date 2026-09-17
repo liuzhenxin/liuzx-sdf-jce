@@ -112,13 +112,13 @@ public class SDFConfigTest {
     }
 
     @Test
-    public void explicitPathDisablesShortNameFallbackEvenWhenOptedIn() throws IOException {
+    public void explicitPathStillAllowsShortNameFallbackWhenOptedIn() throws IOException {
         Path library = Files.createTempFile(temporaryDirectory, "libsdf-", ".so");
         System.setProperty(SDFConfig.LIBRARY_PATH_PROPERTY, library.toString());
         System.setProperty(SDFConfig.LIBRARY_FALLBACK_ENABLED_PROPERTY, "true");
 
         assertTrue(SDFConfig.getInstance().hasExplicitLibraryPath());
-        assertFalse(SDFConfig.getInstance().isLibraryFallbackEnabled());
+        assertTrue(SDFConfig.getInstance().isLibraryFallbackEnabled());
     }
 
     @Test
@@ -127,6 +127,14 @@ public class SDFConfigTest {
         System.setProperty(SDFConfig.CONFIG_PATH_PROPERTY, config.toString());
 
         assertEquals(config.toRealPath().toString(), SDFConfig.getInstance().getConfigPath());
+    }
+
+    @Test
+    public void getConfigPathAcceptsExistingDirectoryForWithPathVendors() throws IOException {
+        Path configDir = Files.createTempDirectory(temporaryDirectory, "vendor-conf-");
+        System.setProperty(SDFConfig.VENDOR_CONFIG_PATH_PROPERTY, configDir.toString());
+
+        assertEquals(configDir.toRealPath().toString(), SDFConfig.getInstance().getConfigPath());
     }
 
     @Test
@@ -268,6 +276,26 @@ public class SDFConfigTest {
         System.setProperty(SDFConfig.PROFILE_PATH_PROPERTY, profile.toString());
 
         assertEquals(SDFConfig.RsaKeyLayout.PACKED, SDFConfig.getInstance().getRsaKeyLayout());
+    }
+
+    @Test
+    public void bundledShudunAarch64LibraryMatchesPublishedHash() throws Exception {
+        String expected = "19306e226e680fb440269257bf2888b2bdb6beec8aae469dcde32cfc6778253b";
+        java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+        try (java.io.InputStream stream = getClass()
+                .getResourceAsStream("/native/shudun/linux-aarch64/libsdhsmcrypto.so")) {
+            org.junit.jupiter.api.Assertions.assertNotNull(stream, "aarch64 Shudun library is not bundled");
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = stream.read(buffer)) != -1) {
+                digest.update(buffer, 0, read);
+            }
+        }
+        StringBuilder hex = new StringBuilder();
+        for (byte value : digest.digest()) {
+            hex.append(String.format("%02x", value & 0xff));
+        }
+        assertEquals(expected, hex.toString());
     }
 
     private Path writeProfile(String vendor, String libraryPath) throws IOException {
