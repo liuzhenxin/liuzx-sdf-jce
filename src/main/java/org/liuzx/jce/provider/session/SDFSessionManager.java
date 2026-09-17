@@ -181,7 +181,10 @@ public class SDFSessionManager {
 			deviceHandle = null;
 			if (device != null) {
 				try {
-					sdfLibrary.SDF_CloseDevice(device);
+					int rv = sdfLibrary.SDF_CloseDevice(device);
+					if (rv != 0) {
+						logger.warn("SDF_CloseDevice failed: {}", rv);
+					}
 				}
 				catch (RuntimeException closeError) {
 					logger.warn("Failed to close SDF device", closeError);

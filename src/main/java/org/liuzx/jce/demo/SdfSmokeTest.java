@@ -7,6 +7,7 @@ import org.liuzx.jce.provider.asymmetric.sm2.SM2InternalKeyGenParameterSpec;
 import org.liuzx.jce.provider.asymmetric.sm2.SM2PrivateKey;
 import org.liuzx.jce.provider.asymmetric.sm2.SM2PublicKey;
 import org.liuzx.jce.provider.session.SDFDeviceOpener;
+import org.liuzx.jce.provider.session.SDFSessionManager;
 import org.liuzx.jce.provider.symmetric.SDFSM4Keys;
 import org.liuzx.jce.provider.util.DeviceInfoUtil;
 
@@ -85,6 +86,7 @@ public final class SdfSmokeTest {
         if (FAILED.contains("device-session")) {
             System.out.println("[smoke] device/session unavailable; remaining hardware checks skipped");
             summary();
+            shutdownSessionManager();
             System.exit(1);
         }
 
@@ -161,7 +163,22 @@ public final class SdfSmokeTest {
 
         runInternalChecks();
         summary();
+        shutdownSessionManager();
         System.exit(FAILED.isEmpty() ? 0 : 1);
+    }
+
+    /**
+     * Closes the SDF device explicitly before JVM exit. Vendors such as Shudun require
+     * the device to be closed by the application before it terminates, not merely from a
+     * JVM shutdown hook.
+     */
+    private static void shutdownSessionManager() {
+        try {
+            SDFSessionManager.getInstance().shutdown();
+        }
+        catch (Throwable ignored) {
+            // Best effort: the provider may never have initialised (e.g. library load failure).
+        }
     }
 
     private static void runInternalChecks() {
