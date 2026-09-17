@@ -61,6 +61,19 @@ services:
 > DYSX 则是 INI **文件**（`SDF_OpenDeviceEx` 语义），两者不要混。
 
 ### 1.3 启动检查
+可用本仓库脚本自动轮询并断言（readiness 就绪、可选状态接口、日志无失败特征）：
+
+```bash
+KMC_BASE_URL=http://127.0.0.1:3443 \
+KMC_CONTAINER=pki-kmc \
+KMC_TOKEN=<bearer-token> \
+  scripts/accept-kmc.sh
+```
+
+变量：`KMC_BASE_URL`、`KMC_CONTEXT_PATH`（默认 `/api`）、`KMC_TIMEOUT_SECONDS`、
+`KMC_POLL_INTERVAL`、`KMC_TOKEN`（有则查 `/v1/crypto-devices/status`）、
+`KMC_CONTAINER`/`KMC_LOG_FILE`（有则做日志断言）。未提供容器/日志时日志检查为 `[SKIP]`。
+
 - 日志**不得**出现 `SDF device probe failed`、`key protection is not ready`、
   `Error looking up function 'SDF_OpenDeviceEx'`。
 - 日志**不得**出现数盾 `[FORCE] 应用应仅打开一次设备句柄并全局使用`（多开告警）。
