@@ -43,6 +43,14 @@ public class SDFSessionManager {
 
 	private volatile boolean shutdown;
 
+	private final Object deviceLock = new Object();
+
+	/**
+	 * 全局唯一设备句柄，所有会话共享。数盾要求一个应用只打开一次设备并全局复用；
+	 * 会话（SDF_OpenSession）可以有多个。
+	 */
+	private volatile Pointer deviceHandle;
+
 	// Double-checked locking: SDFLibrary is loaded first, then pool is initialized.
 	// This avoids the JNI_OnLoad circular callback issue during Native.load().
 	private static volatile SDFSessionManager INSTANCE;
@@ -108,13 +116,51 @@ public class SDFSessionManager {
 	}
 
 	/**
-	 * 打开一个新的 SDF 设备会话（标准 SDF_OpenDevice，或厂商可选的 SDF_OpenDeviceEx /
-	 * SDF_OpenDeviceWithPath 扩展；扩展缺失时自动回退）。
+	 * 打开一个新的 SDF 会话。设备句柄全局唯一（数盾要求一个应用只打开一次设备并复用），
+	 * 所有会话共享同一个 device handle；会话打开失败且错误码表明连接/设备失效时，
+	 * 关闭并重建全局设备句柄后重试一次。
 	 * @return 新会话，失败返回 null
 	 */
 	private SDFSession openSession() {
-		Pointer deviceHandle = null;
 		try {
+			for (int attempt = 0; attempt < 2; attempt++) {
+				Pointer device = openDeviceIfNeeded();
+				if (device == null) {
+					return null;
+				}
+				Pointer[] phSessionHandle = new Pointer[1];
+				int rv = sdfLibrary.SDF_OpenSession(device, phSessionHandle);
+				if (rv == 0) {
+					return new SDFSession(device, phSessionHandle[0], this);
+				}
+				logger.warn("SDF_OpenSession failed: {}", rv);
+				if (!isSessionLost(rv)) {
+					return null;
+				}
+				// 设备连接可能已失效：关闭并重建全局句柄，随后重试一次
+				resetDevice();
+			}
+			return null;
+		}
+		catch (Exception e) {
+			logger.error("Failed to open SDF session", e);
+			return null;
+		}
+	}
+
+	/**
+	 * 惰性打开全局设备句柄（标准 SDF_OpenDevice，必要时回退厂商路径扩展）。
+	 * @return 设备句柄；失败返回 null
+	 */
+	private Pointer openDeviceIfNeeded() {
+		Pointer existing = deviceHandle;
+		if (existing != null) {
+			return existing;
+		}
+		synchronized (deviceLock) {
+			if (deviceHandle != null) {
+				return deviceHandle;
+			}
 			Pointer[] phDeviceHandle = new Pointer[1];
 			String configPath = SDFConfig.getInstance().getConfigPath();
 			int rv = SDFDeviceOpener.open(sdfLibrary, phDeviceHandle, configPath);
@@ -124,28 +170,23 @@ public class SDFSessionManager {
 				return null;
 			}
 			deviceHandle = phDeviceHandle[0];
-			Pointer[] phSessionHandle = new Pointer[1];
-			rv = sdfLibrary.SDF_OpenSession(deviceHandle, phSessionHandle);
-			if (rv != 0) {
-				logger.warn("SDF_OpenSession failed: {}", rv);
-				Pointer failedDeviceHandle = deviceHandle;
-				deviceHandle = null;
-				sdfLibrary.SDF_CloseDevice(failedDeviceHandle);
-				return null;
-			}
-			return new SDFSession(deviceHandle, phSessionHandle[0], this);
+			return deviceHandle;
 		}
-		catch (Exception e) {
-			if (deviceHandle != null) {
+	}
+
+	/** 关闭并清空全局设备句柄（设备失效重建或 shutdown 时使用）。 */
+	private void resetDevice() {
+		synchronized (deviceLock) {
+			Pointer device = deviceHandle;
+			deviceHandle = null;
+			if (device != null) {
 				try {
-					sdfLibrary.SDF_CloseDevice(deviceHandle);
+					sdfLibrary.SDF_CloseDevice(device);
 				}
 				catch (RuntimeException closeError) {
-					logger.warn("Failed to close SDF device after session open failure", closeError);
+					logger.warn("Failed to close SDF device", closeError);
 				}
 			}
-			logger.error("Failed to open SDF session", e);
-			return null;
 		}
 	}
 
@@ -265,6 +306,7 @@ public class SDFSessionManager {
 			allSessions.clear();
 		}
 		sessionPool.clear();
+		resetDevice();
 		logger.info("SDF session pool shut down complete.");
 	}
 

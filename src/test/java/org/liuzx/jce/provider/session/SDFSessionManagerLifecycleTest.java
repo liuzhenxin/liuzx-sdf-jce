@@ -70,6 +70,11 @@ public class SDFSessionManagerLifecycleTest {
         sessionPoolField.setAccessible(true);
         ((BlockingQueue<SDFSession>) sessionPoolField.get(manager)).add(session);
 
+        // The device handle is shared and owned by the manager; seed it to assert shutdown closes it once.
+        Field deviceHandleField = SDFSessionManager.class.getDeclaredField("deviceHandle");
+        deviceHandleField.setAccessible(true);
+        deviceHandleField.set(manager, new Pointer(9));
+
         manager.shutdown();
         manager.shutdown();
 

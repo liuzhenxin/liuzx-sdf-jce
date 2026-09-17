@@ -136,10 +136,12 @@ public final class SdfSmokeTest {
 
         optional("sm4-ecb", "external SM4/ECB/PKCS5Padding round-trip", true, () -> sm4RoundTrip("SM4/ECB/PKCS5Padding"));
 
-        optional("sm4-mac", "SM4MAC over a generated key", true, () -> {
+        optional("sm4-mac", "SM4MAC over a block-aligned key", true, () -> {
             Mac mac = Mac.getInstance("SM4MAC", PROVIDER);
             mac.init(sm4Key());
-            byte[] tag = mac.doFinal("sdf-smoke-mac".getBytes(StandardCharsets.UTF_8));
+            // Some devices (e.g. Shudun) require block-aligned MAC input; the caller pads.
+            byte[] message = "sdf-smoke-mac-16".getBytes(StandardCharsets.UTF_8);
+            byte[] tag = mac.doFinal(message);
             if (tag.length == 0) {
                 throw new IllegalStateException("empty MAC");
             }

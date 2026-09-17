@@ -44,6 +44,8 @@
 - **内部密钥公钥可导出**：内部 SM2 密钥的 X.509 公钥编码恢复，便于生成 CSR / 证书（私钥仍在硬件内）。
 - **随包数盾 aarch64 库**：内置 profile 新增 `Shudun.platforms.linux.aarch64`，并随 JAR 分发
   `native/shudun/linux-aarch64/libsdhsmcrypto.so`（SHA-256 校验）。
+- **会话管理遵从单设备句柄**：`SDFSessionManager` 全局只 `SDF_OpenDevice` 一次，所有会话共享同一
+  device handle（数盾要求“一个应用只打开一次设备并全局使用”）；会话仍可多开，退出前统一关闭设备。
 
 ### 1.1.3 (2026-08-29)
 

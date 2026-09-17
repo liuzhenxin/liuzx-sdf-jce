@@ -58,21 +58,17 @@ public class SDFSession implements AutoCloseable {
     }
 
     /**
-     * Actually closes the underlying SDF session and device handles.
+     * Actually closes the underlying SDF session handle.
      * Idempotent: safe to call multiple times.
-     * To be called only by the manager during shutdown.
+     * The device handle is shared between sessions and owned by the session manager,
+     * so it is closed once by the manager (Shudun requires a single global device handle).
      */
     void destroy() {
-        Pointer device = hDeviceHandle;
         Pointer session = hSessionHandle;
-        // Set fields to null first so a concurrent destroy sees them as gone
+        // Set the field to null first so a concurrent destroy sees it as gone.
         hSessionHandle = null;
-        hDeviceHandle = null;
         if (session != null) {
             manager.getSdfLibrary().SDF_CloseSession(session);
-        }
-        if (device != null) {
-            manager.getSdfLibrary().SDF_CloseDevice(device);
         }
     }
 }
