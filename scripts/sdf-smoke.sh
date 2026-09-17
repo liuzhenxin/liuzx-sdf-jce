@@ -59,16 +59,16 @@ vendor_material() {
     fi
     case "$(echo "${SMOKE_VENDOR}" | tr '[:upper:]' '[:lower:]')" in
         dysx)
-            echo "HSM/DYSX/2.0/${ARCH}/linux/libsdf.so|HSM/DYSX/2.0/conf/cacipher.ini"
+            echo "${ROOT_DIR}/HSM/DYSX/2.0/${ARCH}/linux/libsdf.so|${ROOT_DIR}/HSM/DYSX/2.0/conf/cacipher.ini"
             ;;
         sansec)
-            echo "HSM/SanSec/1.3.87/${ARCH}/linux/libswsds.so|HSM/SanSec/1.3.87/conf"
+            echo "${ROOT_DIR}/HSM/SanSec/1.3.87/${ARCH}/linux/libswsds.so|${ROOT_DIR}/HSM/SanSec/1.3.87/conf"
             ;;
         shudun)
-            if [[ "${ARCH}" == "aarch64" && -f "HSM/SHUDUN/SDF--aarch64-glibc2.31/libsdhsmcrypto.so" ]]; then
-                echo "HSM/SHUDUN/SDF--aarch64-glibc2.31/libsdhsmcrypto.so|HSM/SHUDUN/SDF--aarch64-glibc2.31"
-            elif [[ -f "HSM/SHUDUN/1.4.2/${ARCH}/linux/libsdhsmcrypto.so" ]]; then
-                echo "HSM/SHUDUN/1.4.2/${ARCH}/linux/libsdhsmcrypto.so|HSM/SHUDUN/1.4.2/conf"
+            if [[ "${ARCH}" == "aarch64" && -f "${ROOT_DIR}/HSM/SHUDUN/SDF--aarch64-glibc2.31/libsdhsmcrypto.so" ]]; then
+                echo "${ROOT_DIR}/HSM/SHUDUN/SDF--aarch64-glibc2.31/libsdhsmcrypto.so|${ROOT_DIR}/HSM/SHUDUN/SDF--aarch64-glibc2.31"
+            elif [[ -f "${ROOT_DIR}/HSM/SHUDUN/1.4.2/${ARCH}/linux/libsdhsmcrypto.so" ]]; then
+                echo "${ROOT_DIR}/HSM/SHUDUN/1.4.2/${ARCH}/linux/libsdhsmcrypto.so|${ROOT_DIR}/HSM/SHUDUN/1.4.2/conf"
             else
                 # Fall back to the library bundled in the JAR for this platform.
                 echo "|"
