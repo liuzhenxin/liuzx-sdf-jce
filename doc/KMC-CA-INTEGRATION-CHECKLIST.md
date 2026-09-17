@@ -141,6 +141,24 @@ CA 启动时会 `securityFactory.createSigner("sdf", conf, cert)`，内部会
 `SDF_ExportSignPublicKey_*` 导出公钥并用硬件私钥签名。
 
 ### 2.5 端到端
+可用本仓库脚本调用 CA 签名者测试接口（走 `SdfSignerFactory` → 设备内部密钥），可选签发与 CRL，并做日志断言：
+
+```bash
+CA_BASE_URL=http://127.0.0.1:4443 \
+CA_TOKEN=<bearer-token> \
+CA_SIGNER_KEY_INDEX=11 CA_SIGNER_ALGO=RSA_SHA256 CA_SIGNER_PIN=<PIN> \
+CA_ISSUE=1 CA_ROOT_ID=1001 CA_PROFILE_ID=3001 \
+CA_ROOT_CERT_FILE=/path/root.pem \
+CA_CRL=1 CA_CONTAINER=pki-ca \
+  scripts/accept-ca.sh
+```
+
+变量：`CA_BASE_URL`、`CA_CONTEXT_PATH`（默认 `/api`）、`CA_TOKEN`（无则仅做日志检查）、
+`CA_SIGNER_ALGO`/`CA_SIGNER_KEY_INDEX`/`CA_SIGNER_PIN`、`CA_ISSUE`/`CA_ROOT_ID`/`CA_PROFILE_ID`/
+`CA_SUBJECT`/`CA_NOT_BEFORE`/`CA_NOT_AFTER`、`CA_ROOT_CERT_FILE`（配合 `jq`+`openssl` 验证签发结果）、
+`CA_CRL`、`CA_CONTAINER`/`CA_LOG_FILE`。
+
+手工验证（如不用脚本）：
 1. 用该 CA 签发一张证书（或签 CRL）；
 2. 用导出的公钥/证书验签通过；
 3. 重启 CA 后再签一次，确认无 `No such provider: liuzx` / 设备打开失败。
