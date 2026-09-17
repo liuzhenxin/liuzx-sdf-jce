@@ -146,6 +146,41 @@ SMOKE_SM2_SIGN_INDEX=21 SMOKE_RSA_SIGN_INDEX=11 SMOKE_SM4_KEY_INDEX=1 \
 `SMOKE_EXPECT_STRATEGY`、`SMOKE_PIN`、`SMOKE_SM2_SIGN_INDEX`、`SMOKE_RSA_SIGN_INDEX`、
 `SMOKE_SM4_KEY_INDEX`、`SMOKE_SKIP_BUILD=1`。
 
+### 4. 打包到密码机主机运行
+
+本机与密码机不是同一台（或不同架构）时，用 `scripts/pack-smoke.sh` 生成自包含测试包，
+内含 JAR、JNA/Gson 依赖、厂商原生库（若未随 JAR 内置）、可编辑的设备配置和自动生成的
+`run-smoke.sh`：
+
+```bash
+# 数盾 aarch64（原生库已在 JAR 内）
+PACK_VENDOR=Shudun PACK_ARCH=aarch64 scripts/pack-smoke.sh
+
+# SanSec aarch64（随包携带 libswsds.so）
+PACK_VENDOR=SanSec PACK_ARCH=aarch64 scripts/pack-smoke.sh
+
+# Dysx aarch64（HSM 材料中无该库，需显式提供）
+PACK_VENDOR=Dysx PACK_ARCH=aarch64 PACK_LIBRARY_PATH=/path/libsdf.so scripts/pack-smoke.sh
+```
+
+产物在 `target/liuzx-sdf-jce-smoke-<vendor>-<arch>.tar.gz`。到目标主机解包后：
+
+```bash
+scp target/liuzx-sdf-jce-smoke-shudun-aarch64.tar.gz user@hsm-host:/tmp/
+# 目标主机：
+tar -xzf /tmp/liuzx-sdf-jce-smoke-shudun-aarch64.tar.gz -C /opt
+cd /opt/liuzx-sdf-jce-smoke-shudun-aarch64
+# 编辑 conf/ 里的密码机 IP/端口
+vi conf/sdhsm.ini
+SMOKE_SM4_KEY_INDEX=1 ./run-smoke.sh
+```
+
+变量：`PACK_VENDOR`、`PACK_ARCH`（`aarch64`/`x86_64`）、`PACK_LIBRARY_PATH`、
+`PACK_CONFIG_PATH`、`PACK_OUT_DIR`、`PACK_SKIP_BUILD=1`。
+
+> 安全：`conf/` 可能含设备凭据/证书，测试包不要外发或提交；`SMOKE_PIN` 会出现在
+> `java` 进程参数中。
+
 ---
 
 ## ⚙️ 配置
