@@ -1,5 +1,9 @@
 package org.liuzx.jce.demo;
 
+import org.liuzx.jce.api.SdfDevice;
+import org.liuzx.jce.api.SdfDevices;
+import org.liuzx.jce.api.SdfErrorCategory;
+import org.liuzx.jce.api.SdfException;
 import org.liuzx.jce.provider.LiuZXProvider;
 import org.liuzx.jce.provider.asymmetric.rsa.RSAInternalKeyGenParameterSpec;
 import org.liuzx.jce.provider.asymmetric.rsa.SDFRSAPrivateKey;
@@ -161,6 +165,7 @@ public final class SdfSmokeTest {
             }
         });
 
+        runFacadeChecks();
         runInternalChecks();
         summary();
         shutdownSessionManager();
@@ -211,6 +216,115 @@ public final class SdfSmokeTest {
             SecretKey key = SDFSM4Keys.internalKey(sm4KeyIndex);
             cipherRoundTrip("SM4/CBC/PKCS5Padding", key);
         });
+    }
+
+    /**
+     * Facade checks driven by {@code org.liuzx.jce.api}. These prove a consumer can sign
+     * without touching JNA types. Enabled by default; disable with
+     * {@code -Dliuzx.sdf.smoke.apiFacade=false}. PIN exposure: {@code SMOKE_BAD_PIN} is used
+     * only to trigger AUTHORIZATION_FAILED and is never logged.
+     */
+    private static void runFacadeChecks() {
+        final boolean enabled = !"false".equalsIgnoreCase(
+                System.getProperty("liuzx.sdf.smoke.apiFacade", "true"));
+        final int sm2SignIndex = Integer.getInteger("liuzx.sdf.smoke.sm2SignIndex", -1);
+        final int rsaSignIndex = Integer.getInteger("liuzx.sdf.smoke.rsaSignIndex", -1);
+        final int missingIndex = Integer.getInteger("liuzx.sdf.smoke.missingIndex", 990001);
+        final String badPin = System.getProperty("liuzx.sdf.smoke.badPin");
+        final boolean expectDeviceUnavailable = Boolean.parseBoolean(
+                System.getProperty("liuzx.sdf.smoke.expectDeviceUnavailable", "false"));
+        final int algorithmUnsupportedIndex = Integer.getInteger(
+                "liuzx.sdf.smoke.algorithmUnsupportedIndex", -1);
+
+        final SdfDevice[] device = new SdfDevice[1];
+        try {
+            optional("api-facade-open", "org.liuzx.jce.api facade opens device", enabled, () -> {
+                device[0] = SdfDevices.open();
+                if (device[0].capabilities().sm2DefaultUserId().isEmpty()) {
+                    throw new IllegalStateException("empty sm2DefaultUserId");
+                }
+                if (device[0].deviceInfo().toSafeString().isEmpty()) {
+                    throw new IllegalStateException("empty toSafeString");
+                }
+            });
+            final boolean opened = device[0] != null;
+
+            optional("api-export-public", "facade exportSignPublicKey returns DER",
+                    enabled && opened && sm2SignIndex > 0, () -> {
+                byte[] encoded = device[0].exportSignPublicKey(sm2SignIndex);
+                if (encoded.length == 0 || (encoded[0] & 0xff) != 0x30) {
+                    throw new IllegalStateException("not a DER SEQUENCE");
+                }
+            });
+
+            optional("api-sign-sm2", "facade signSm2 returns 64 bytes",
+                    enabled && opened && sm2SignIndex > 0, () -> {
+                byte[] signature = device[0].signSm2(sm2SignIndex,
+                        "facade".getBytes(StandardCharsets.UTF_8), null);
+                if (signature.length != 64) {
+                    throw new IllegalStateException("length=" + signature.length);
+                }
+            });
+
+            optional("api-sign-sm2-digest", "facade signSm2Digest returns 64 bytes without re-hash",
+                    enabled && opened && sm2SignIndex > 0, () -> {
+                byte[] digest = new byte[32];
+                Arrays.fill(digest, (byte) 1);
+                byte[] signature = device[0].signSm2Digest(sm2SignIndex, digest, null);
+                if (signature.length != 64) {
+                    throw new IllegalStateException("length=" + signature.length);
+                }
+            });
+
+            optional("api-sign-rsa", "facade signRsa matches modulus length",
+                    enabled && opened && rsaSignIndex > 0, () -> {
+                byte[] signature = device[0].signRsa(rsaSignIndex,
+                        "facade".getBytes(StandardCharsets.UTF_8), null);
+                if (signature.length != 256 && signature.length != 512) {
+                    throw new IllegalStateException("length=" + signature.length);
+                }
+            });
+
+            optional("api-error-key-not-found", "missing index maps to KEY_NOT_FOUND", enabled && opened, () -> {
+                expectCategory(() -> device[0].signSm2(missingIndex, new byte[] {1}, null),
+                        SdfErrorCategory.KEY_NOT_FOUND);
+            });
+
+            optional("api-error-authorization-failed", "wrong PIN maps to AUTHORIZATION_FAILED",
+                    enabled && opened && sm2SignIndex > 0 && badPin != null, () -> {
+                expectCategory(() -> device[0].signSm2(sm2SignIndex, new byte[] {1}, badPin.toCharArray()),
+                        SdfErrorCategory.AUTHORIZATION_FAILED);
+            });
+
+            optional("api-error-device-unavailable", "DISCONNECT device then expect DEVICE_UNAVAILABLE",
+                    enabled && expectDeviceUnavailable, () -> {
+                throw new IllegalStateException("set liuzx.sdf.smoke.expectDeviceUnavailable with a disconnected device");
+            });
+
+            optional("api-error-algorithm-unsupported", "unsupported algorithm index maps to ALGORITHM_UNSUPPORTED",
+                    enabled && opened && algorithmUnsupportedIndex > 0, () -> {
+                expectCategory(() -> device[0].signSm2Digest(algorithmUnsupportedIndex, new byte[32], null),
+                        SdfErrorCategory.ALGORITHM_UNSUPPORTED);
+            });
+        }
+        finally {
+            if (device[0] != null) {
+                device[0].close();
+            }
+        }
+    }
+
+    private static void expectCategory(CheckedRunnable action, SdfErrorCategory expected) throws Exception {
+        try {
+            action.run();
+        }
+        catch (SdfException e) {
+            if (e.category() != expected) {
+                throw new IllegalStateException("expected " + expected + " but got " + e.category(), e);
+            }
+            return;
+        }
+        throw new IllegalStateException("expected " + expected + " but call succeeded");
     }
 
     private static KeyPair generateKeyPair(String algorithm, int bits) throws Exception {
