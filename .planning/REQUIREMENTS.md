@@ -5,7 +5,23 @@
 
 ## v1 Requirements
 
-本次加固的初始发布范围。每项映射到路线图的一个阶段。
+本次发布的初始范围：先交付消费方 façade（解除 `liuzx-svs` 阻塞），再进行安全与质量加固。每项映射到路线图的一个阶段。
+
+### 消费方 API Façade
+
+- [ ] **API-01**: 新增稳定公开包 `org.liuzx.jce.api`，仅使用 JDK 类型；反射审计确认公开签名无 JNA / `Path` / `File` / `Pointer` / `PrivateKey`
+- [ ] **API-02**: `SdfErrorCategory` 九类枚举与 SVS 稳定分类 1:1 对应
+- [ ] **API-03**: 公开 `SdfException`，携带 `category` / `operation` / 仅十六进制码的 `internalDetail` / `isRetryable`
+- [ ] **API-04**: `SdfDeviceInfo` 脱敏 record，无序列号访问器，`toSafeString()` 不含序列号/路径/库文件名
+- [ ] **API-05**: `SdfCapabilities` record，公开实际生效的 `sm2DefaultUserId` 与会话池状态
+- [ ] **API-06**: `SdfDevice` 接口实现全部语义（`exportSignPublicKey` / `signSm2` / `signSm2Digest` / `signRsa` / `close`）
+- [ ] **API-07**: `SdfDevices` 入口工厂 `open()` / `open(Properties)`，不要求调用方提供 `SDFLibrary` / `Pointer` / 会话句柄
+- [ ] **API-08**: `exportSignPublicKey(int)` 返回 X.509 SubjectPublicKeyInfo，可被标准解析器解析（解除 SVS 阻塞）
+- [ ] **API-09**: `signSm2Digest` 直接把入参作为 `e` 交给 `SDF_InternalSign_ECC`，不得再次哈希；长度非 32 抛 `OPERATION_FAILED`
+- [ ] **API-10**: `signRsa` 输出长度等于模长字节数并保留前导零，真机输出可被独立软件验签器验证
+- [ ] **API-11**: PIN 按需申请、`finally` 释放，不得按会话或索引缓存，也不得存入任何字段
+- [ ] **API-12**: 九类错误分类至少可被真机触发 `KEY_NOT_FOUND`、`AUTHORIZATION_FAILED`、`DEVICE_UNAVAILABLE`、`ALGORITHM_UNSUPPORTED`
+- [ ] **API-13**: 发布 1.1.5，`mvn -q verify` 通过，且 `liuzx-svs` 的 `DeviceDependencyContractTest` 由 BLOCKED 转为通过
 
 ### 凭据与密钥安全
 
@@ -71,36 +87,51 @@
 | 支持数盾未导出的 ECDSA/EdDSA/DSA 密钥对生成 | 硬件能力限制，非本库缺陷 |
 | 用 JNI 重写 JNA 绑定 | 无收益，回归风险极高 |
 | 重写既有硬件验收脚本 | 它们是现有验证资产，只做适配 |
+| 通过 façade 暴露密钥枚举/导入/删除/生成/备份、原生句柄或私钥字节 | 消费方只需要签名与公钥导出，暴露这些会破坏 `org.liuzx.jce.api` 的安全边界 |
+| `org.liuzx.jce.api` 引入 JNA / `Path` / `File` / `Pointer` / `PrivateKey` 类型 | 消费方适配层明令禁止触碰 JNA 类型 |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEC-01 | Phase 1 | Pending |
-| SEC-02 | Phase 1 | Pending |
-| SEC-03 | Phase 1 | Pending |
-| SEC-04 | Phase 1 | Pending |
-| BUILD-04 | Phase 2 | Pending |
-| BUILD-02 | Phase 2 | Pending |
-| BUILD-01 | Phase 3 | Pending |
-| BUILD-03 | Phase 3 | Pending |
-| TEST-01 | Phase 3 | Pending |
-| TEST-02 | Phase 3 | Pending |
-| DOCS-01 | Phase 4 | Pending |
-| DOCS-02 | Phase 4 | Pending |
-| DOCS-03 | Phase 4 | Pending |
-| QUAL-02 | Phase 5 | Pending |
-| QUAL-03 | Phase 5 | Pending |
-| QUAL-04 | Phase 5 | Pending |
-| QUAL-06 | Phase 5 | Pending |
-| QUAL-01 | Phase 6 | Pending |
-| QUAL-05 | Phase 6 | Pending |
-| COMPAT-01 | Phase 6 | Pending |
-| COMPAT-02 | Phase 6 | Pending |
+| API-01 | Phase 1 | Pending |
+| API-02 | Phase 1 | Pending |
+| API-03 | Phase 1 | Pending |
+| API-04 | Phase 1 | Pending |
+| API-05 | Phase 1 | Pending |
+| API-06 | Phase 1 | Pending |
+| API-07 | Phase 1 | Pending |
+| API-08 | Phase 1 | Pending |
+| API-09 | Phase 1 | Pending |
+| API-10 | Phase 1 | Pending |
+| API-11 | Phase 1 | Pending |
+| API-12 | Phase 1 | Pending |
+| API-13 | Phase 1 | Pending |
+| SEC-01 | Phase 2 | Pending |
+| SEC-02 | Phase 2 | Pending |
+| SEC-03 | Phase 2 | Pending |
+| SEC-04 | Phase 2 | Pending |
+| BUILD-04 | Phase 3 | Pending |
+| BUILD-02 | Phase 3 | Pending |
+| BUILD-01 | Phase 4 | Pending |
+| BUILD-03 | Phase 4 | Pending |
+| TEST-01 | Phase 4 | Pending |
+| TEST-02 | Phase 4 | Pending |
+| DOCS-01 | Phase 5 | Pending |
+| DOCS-02 | Phase 5 | Pending |
+| DOCS-03 | Phase 5 | Pending |
+| QUAL-02 | Phase 6 | Pending |
+| QUAL-03 | Phase 6 | Pending |
+| QUAL-04 | Phase 6 | Pending |
+| QUAL-06 | Phase 6 | Pending |
+| QUAL-01 | Phase 7 | Pending |
+| QUAL-05 | Phase 7 | Pending |
+| COMPAT-01 | Phase 7 | Pending |
+| COMPAT-02 | Phase 7 | Pending |
 
 **Coverage:**
-- v1 requirements: 21 total
-- Mapped to phases: 21
+- v1 requirements: 34 total
+- Mapped to phases: 34
 - Unmapped: 0 ✓
 
 ---
