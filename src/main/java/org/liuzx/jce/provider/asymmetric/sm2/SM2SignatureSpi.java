@@ -22,7 +22,13 @@ import java.security.SignatureSpi;
 
 public class SM2SignatureSpi extends SignatureSpi {
 
-    private static final byte[] DEFAULT_USER_ID = "1234567812345678".getBytes(StandardCharsets.UTF_8);
+    /**
+     * SM2 签名实际生效的默认 UserID。门面通过 {@code SdfCapabilities} 公开该值，
+     * 避免消费方猜测或硬编码兜底。
+     */
+    public static final String DEFAULT_USER_ID_STRING = "1234567812345678";
+
+    private static final byte[] DEFAULT_USER_ID = DEFAULT_USER_ID_STRING.getBytes(StandardCharsets.UTF_8);
     private static final int SGD_SM3 = 0x00000001;
     private static final int SGD_SM2_1 = 0x00020200; // SM2 signature algorithm ID
 
