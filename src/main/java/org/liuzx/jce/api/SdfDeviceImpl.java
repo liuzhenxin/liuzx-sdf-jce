@@ -1,15 +1,22 @@
 package org.liuzx.jce.api;
 
 import org.liuzx.jce.jna.SDFLibrary;
+import org.liuzx.jce.jna.structure.ECCSignature;
+import org.liuzx.jce.jna.structure.ECCrefPublicKey;
 import org.liuzx.jce.provider.asymmetric.rsa.RSAInternalKeyGenParameterSpec;
+import org.liuzx.jce.provider.asymmetric.rsa.SDFRSAPrivateKey;
 import org.liuzx.jce.provider.asymmetric.sm2.SM2InternalKeyGenParameterSpec;
+import org.liuzx.jce.provider.asymmetric.sm2.SM2PrivateKey;
 import org.liuzx.jce.provider.asymmetric.sm2.SM2SignatureSpi;
 import org.liuzx.jce.provider.session.SDFSession;
 import org.liuzx.jce.provider.session.SDFSessionManager;
+import org.liuzx.jce.provider.util.ASN1Util;
 import org.liuzx.jce.provider.util.DeviceInfoUtil;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Signature;
+import java.security.interfaces.RSAPublicKey;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -130,19 +137,112 @@ final class SdfDeviceImpl implements SdfDevice {
     @Override
     public byte[] signSm2(int keyIndex, byte[] message, char[] pinOrNull) {
         ensureOpen();
-        throw new UnsupportedOperationException("signSm2 is implemented in plan 01-03");
+        if (message == null) {
+            throw new SdfException(SdfErrorCategory.OPERATION_FAILED, "signSm2", 0, null);
+        }
+        try {
+            ECCrefPublicKey publicKey = exportSm2SignPublicKey(keyIndex);
+            SM2PrivateKey privateKey = new SM2PrivateKey(keyIndex, pinOrNull, publicKey);
+            Signature signature = Signature.getInstance("SM3withSM2", PROVIDER_NAME);
+            signature.initSign(privateKey);
+            signature.update(message);
+            byte[] der = signature.sign();
+            return toRawSignature(ASN1Util.fromASN1Signature(der));
+        } catch (SdfException e) {
+            throw e;
+        } catch (Exception e) {
+            throw mapFailure("signSm2", e);
+        }
     }
 
     @Override
     public byte[] signSm2Digest(int keyIndex, byte[] digest, char[] pinOrNull) {
         ensureOpen();
-        throw new UnsupportedOperationException("signSm2Digest is implemented in plan 01-03");
+        validateDigestLength(digest);
+        try (SDFSession session = sessionManager.borrowSession()) {
+            final ECCSignature.ByReference out = new ECCSignature.ByReference();
+            final byte[] e = digest;
+            final int index = keyIndex;
+            int rv = withPrivateKeyAccess(session, index, pinOrNull, new PrivateKeyAction() {
+                @Override
+                public int run() {
+                    return sessionManager.getSdfLibrary().SDF_InternalSign_ECC(
+                            session.getSessionHandle(), index, e, e.length, out);
+                }
+            });
+            if (rv != 0) {
+                throw new SdfException(SdfErrorMapper.map(rv), "signSm2Digest", rv, null);
+            }
+            return toRawSignature(out);
+        } catch (SdfException e) {
+            throw e;
+        } catch (Exception e) {
+            throw mapFailure("signSm2Digest", e);
+        }
     }
 
     @Override
     public byte[] signRsa(int keyIndex, byte[] message, char[] pinOrNull) {
         ensureOpen();
-        throw new UnsupportedOperationException("signRsa is implemented in plan 01-03");
+        if (message == null) {
+            throw new SdfException(SdfErrorCategory.OPERATION_FAILED, "signRsa", 0, null);
+        }
+        try {
+            RSAPublicKey publicKey = exportRsaSignPublicKey(keyIndex);
+            SDFRSAPrivateKey privateKey = new SDFRSAPrivateKey(keyIndex, pinOrNull, publicKey);
+            Signature signature = Signature.getInstance("SHA256withRSA", PROVIDER_NAME);
+            signature.initSign(privateKey);
+            signature.update(message);
+            byte[] result = signature.sign();
+            int expectedLength = publicKey.getModulus().bitLength() / 8;
+            if (result.length != expectedLength) {
+                throw new SdfException(SdfErrorCategory.OPERATION_FAILED, "signRsa", 0, null);
+            }
+            return result;
+        } catch (SdfException e) {
+            throw e;
+        } catch (Exception e) {
+            throw mapFailure("signRsa", e);
+        }
+    }
+
+    /**
+     * 校验摘要签名入参：长度必须为 32，否则抛 {@code OPERATION_FAILED}。
+     * 包私有静态方法，便于在无硬件环境下测试。
+     */
+    static void validateDigestLength(byte[] digest) {
+        if (digest == null || digest.length != 32) {
+            throw new SdfException(SdfErrorCategory.OPERATION_FAILED, "signSm2Digest", 0, null);
+        }
+    }
+
+    /**
+     * 把 64 字节右对齐的 {@code r}/{@code s} 结构压成 SM2 规范的 64 字节 {@code r[32] ‖ s[32]}。
+     */
+    private static byte[] toRawSignature(ECCSignature signature) {
+        byte[] raw = new byte[64];
+        System.arraycopy(signature.r, signature.r.length - 32, raw, 0, 32);
+        System.arraycopy(signature.s, signature.s.length - 32, raw, 32, 32);
+        return raw;
+    }
+
+    private ECCrefPublicKey exportSm2SignPublicKey(int keyIndex) {
+        try (SDFSession session = sessionManager.borrowSession()) {
+            ECCrefPublicKey.ByReference reference = new ECCrefPublicKey.ByReference();
+            int rv = sessionManager.getSdfLibrary().SDF_ExportSignPublicKey_ECC(
+                    session.getSessionHandle(), keyIndex, reference);
+            if (rv != 0) {
+                throw new SdfException(SdfErrorMapper.map(rv), "exportSignPublicKey", rv, null);
+            }
+            return reference;
+        }
+    }
+
+    private RSAPublicKey exportRsaSignPublicKey(int keyIndex) throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA", PROVIDER_NAME);
+        generator.initialize(new RSAInternalKeyGenParameterSpec(keyIndex));
+        KeyPair pair = generator.generateKeyPair();
+        return (RSAPublicKey) pair.getPublic();
     }
 
     @Override
