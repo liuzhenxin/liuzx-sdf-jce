@@ -31,7 +31,13 @@
   4. `signSm2Digest` 与 `signRsa` 的真机输出可被独立软件验签器用导出的公钥验证通过，且 `SdfDeviceInfo.toSafeString()` 不含序列号
   5. 九类错误分类至少四类（`KEY_NOT_FOUND`/`AUTHORIZATION_FAILED`/`DEVICE_UNAVAILABLE`/`ALGORITHM_UNSUPPORTED`）可被真机触发
   6. `mvn -q verify` 通过并发布 1.1.5
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 01-01: 公开类型骨架（错误分类、异常、脱敏 record、反射审计）
+- [ ] 01-02: 门面接口、入口工厂、公钥导出与 PIN 生命周期
+- [ ] 01-03: signSm2 / signSm2Digest / signRsa 语义与 UserID 单一来源
+- [ ] 01-04: 反射审计硬门禁、冒烟扩展、真机验签与 1.1.5 发布
 
 ### Phase 2: 凭据与密钥安全
 **Goal**: 让签名密钥、PIN 与设备配置不再以公开弱凭据形式存在，且发布路径可审计
