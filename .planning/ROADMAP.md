@@ -34,7 +34,7 @@
 **Plans**: 4 plans
 
 Plans:
-- [ ] 01-01: 公开类型骨架（错误分类、异常、脱敏 record、反射审计）
+- [x] 01-01: 公开类型骨架（错误分类、异常、脱敏 record、反射审计）
 - [ ] 01-02: 门面接口、入口工厂、公钥导出与 PIN 生命周期
 - [ ] 01-03: signSm2 / signSm2Digest / signRsa 语义与 UserID 单一来源
 - [ ] 01-04: 反射审计硬门禁、冒烟扩展、真机验签与 1.1.5 发布
@@ -110,7 +110,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. 消费方 API Façade | 0/0 | Not started | - |
+| 1. 消费方 API Façade | 1/4 | In Progress|  |
 | 2. 凭据与密钥安全 | 0/0 | Not started | - |
 | 3. 可复现构建与依赖签名 | 0/0 | Not started | - |
 | 4. 测试基线与 CI 门禁 | 0/0 | Not started | - |

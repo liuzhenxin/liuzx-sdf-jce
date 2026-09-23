@@ -106,6 +106,8 @@
 | 采用 Standard 粒度（7 个阶段） | 需求需要可独立验证的阶段边界，过粗无法验收，过细管理成本高 | — Pending |
 | SVS 消费方 façade 作为 Phase 1 | 它是外部团队 Phase 2 的硬阻塞，且有独立验收门禁（`DeviceDependencyContractTest`），优先解除 | — Pending |
 | façade 与加固分开成不同阶段 | 新功能面与安全/构建修复的验证方式不同，混在一个阶段会让验收标准互相污染 | — Pending |
+| API 值对象用不可变 final 类而非 `record` | 规格要求 `record`，但本库源码级别为 Java 1.8（`javac -source 8` 不支持 record，`Set.copyOf` 需 Java 10+）；保持 Java 8 兼容，保留 record 等价的访问器命名 | — Pending |
+| 反射审计以生产 classes 目录为基准 | surefire 下 `ClassLoader.getResource("org/liuzx/jce/api")` 解析到 `target/test-classes`，导致审计对象为空 | ✓ Good |
 
 ## Evolution
 
