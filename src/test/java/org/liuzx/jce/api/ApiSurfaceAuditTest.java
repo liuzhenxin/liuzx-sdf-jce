@@ -41,8 +41,8 @@ class ApiSurfaceAuditTest {
     @Test
     void publicSurfaceLeaksNoJnaTypes() throws Exception {
         List<Class<?>> publicTypes = loadPublicTypes();
-        assertTrue(publicTypes.size() >= 5,
-                "expected at least 5 public types in " + PACKAGE_NAME + ", found " + publicTypes.size());
+        assertTrue(publicTypes.size() >= 6,
+                "expected at least 6 public types in " + PACKAGE_NAME + ", found " + publicTypes.size());
 
         List<String> violations = new ArrayList<String>();
         Set<Type> visited = newIdentitySet();
@@ -63,6 +63,15 @@ class ApiSurfaceAuditTest {
         assertTrue(violations.isEmpty(),
                 "forbidden types leaked into org.liuzx.jce.api public surface:\n"
                         + String.join("\n", violations));
+    }
+
+    @Test
+    void deviceInfoHasNoSerialAccessor() {
+        for (Method method : SdfDeviceInfo.class.getDeclaredMethods()) {
+            String name = method.getName().toLowerCase();
+            assertTrue(!name.contains("serial"),
+                    "SdfDeviceInfo must not expose a serial accessor: " + method.getName());
+        }
     }
 
     private static Set<Type> newIdentitySet() {
