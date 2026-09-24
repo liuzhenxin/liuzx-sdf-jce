@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 1 规划完成，等待执行（/gsd-execute-phase 1）
-last_updated: "2026-09-23T14:46:28.764Z"
+stopped_at: Plan 01-04 人工验收检查点 — 真机 17 PASS/0 FAIL，API-09 受 SM2 内部密钥口令阻塞
+last_updated: "2026-09-24T08:40:00.000Z"
 last_activity: 2026-09-23
 progress:
   total_phases: 7
@@ -76,6 +76,7 @@ None yet.
 - Phase 4 的 CI 需要真实硬件不可用环境下可运行，必须在 Phase 4 之前确认哪些测试属于硬件无关集合。
 - Phase 2 的密钥轮换会影响现有已发布 JAR 的认证连续性，需确认下游 KMC/CA/NAS 的升级窗口。
 - Phase 1 交付后需与 `liuzx-svs` 确认 `DeviceDependencyContractTest` 已解除 BLOCKED；`doc/SVS-FACADE-1.1.5-CHECKLIST.md` 是两仓库共享副本，改动需同步。
+- **Phase 1 / API-09 阻塞（2026-09-24）**：真机 211.88.20.91 上索引 1–10 的 SM2 密钥对提供的两个口令（`1234qwer` 与 RSA 密钥口令）均返回 `0x01000018`；RSA 索引 11 同一口令可正常签名。需确认 SM2 密钥访问口令。详见 `doc/SVS-FACADE-1.1.5-ACCEPTANCE.md`。
 
 ## Deferred Items
 
@@ -87,6 +88,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-23
-Stopped at: Phase 1 规划完成，等待执行（/gsd-execute-phase 1）
+Last session: 2026-09-24
+Stopped at: Plan 01-04 真机验收检查点：17 PASS/0 FAIL，`api-sign-sm2`/`api-sign-sm2-digest` 待 SM2 口令
 Resume file: None
