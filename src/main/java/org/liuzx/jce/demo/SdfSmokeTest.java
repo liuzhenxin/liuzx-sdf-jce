@@ -231,8 +231,12 @@ public final class SdfSmokeTest {
         final int rsaSignIndex = Integer.getInteger("liuzx.sdf.smoke.rsaSignIndex", -1);
         final int missingIndex = Integer.getInteger("liuzx.sdf.smoke.missingIndex", 990001);
         final String badPin = System.getProperty("liuzx.sdf.smoke.badPin");
+        final char[] pin = System.getProperty("liuzx.sdf.smoke.pin") == null
+                ? null : System.getProperty("liuzx.sdf.smoke.pin").toCharArray();
         final boolean expectDeviceUnavailable = Boolean.parseBoolean(
                 System.getProperty("liuzx.sdf.smoke.expectDeviceUnavailable", "false"));
+        final boolean expectAuthFailWithoutPin = Boolean.parseBoolean(
+                System.getProperty("liuzx.sdf.smoke.expectAuthorizationFailWithoutPin", "false"));
         final int algorithmUnsupportedIndex = Integer.getInteger(
                 "liuzx.sdf.smoke.algorithmUnsupportedIndex", -1);
 
@@ -260,7 +264,7 @@ public final class SdfSmokeTest {
             optional("api-sign-sm2", "facade signSm2 returns 64 bytes",
                     enabled && opened && sm2SignIndex > 0, () -> {
                 byte[] signature = device[0].signSm2(sm2SignIndex,
-                        "facade".getBytes(StandardCharsets.UTF_8), null);
+                        "facade".getBytes(StandardCharsets.UTF_8), pin);
                 if (signature.length != 64) {
                     throw new IllegalStateException("length=" + signature.length);
                 }
@@ -270,7 +274,7 @@ public final class SdfSmokeTest {
                     enabled && opened && sm2SignIndex > 0, () -> {
                 byte[] digest = new byte[32];
                 Arrays.fill(digest, (byte) 1);
-                byte[] signature = device[0].signSm2Digest(sm2SignIndex, digest, null);
+                byte[] signature = device[0].signSm2Digest(sm2SignIndex, digest, pin);
                 if (signature.length != 64) {
                     throw new IllegalStateException("length=" + signature.length);
                 }
@@ -279,7 +283,7 @@ public final class SdfSmokeTest {
             optional("api-sign-rsa", "facade signRsa matches modulus length",
                     enabled && opened && rsaSignIndex > 0, () -> {
                 byte[] signature = device[0].signRsa(rsaSignIndex,
-                        "facade".getBytes(StandardCharsets.UTF_8), null);
+                        "facade".getBytes(StandardCharsets.UTF_8), pin);
                 if (signature.length != 256 && signature.length != 512) {
                     throw new IllegalStateException("length=" + signature.length);
                 }
@@ -290,10 +294,18 @@ public final class SdfSmokeTest {
                         SdfErrorCategory.KEY_NOT_FOUND);
             });
 
-            optional("api-error-authorization-failed", "wrong PIN maps to AUTHORIZATION_FAILED",
-                    enabled && opened && sm2SignIndex > 0 && badPin != null, () -> {
-                expectCategory(() -> device[0].signSm2(sm2SignIndex, new byte[] {1}, badPin.toCharArray()),
-                        SdfErrorCategory.AUTHORIZATION_FAILED);
+            optional("api-error-authorization-failed", "wrong/absent PIN maps to AUTHORIZATION_FAILED",
+                    enabled && opened && ((badPin != null && sm2SignIndex > 0)
+                            || (expectAuthFailWithoutPin && rsaSignIndex > 0)), () -> {
+                if (badPin != null) {
+                    expectCategory(() -> device[0].signSm2(sm2SignIndex, new byte[] {1}, badPin.toCharArray()),
+                            SdfErrorCategory.AUTHORIZATION_FAILED);
+                } else {
+                    // Pin-protected key with no PIN supplied: the device rejects the operation
+                    // with SDR_PRKRERR, which maps to AUTHORIZATION_FAILED. No wrong-PIN guess.
+                    expectCategory(() -> device[0].signRsa(rsaSignIndex, new byte[] {1}, null),
+                            SdfErrorCategory.AUTHORIZATION_FAILED);
+                }
             });
 
             optional("api-error-device-unavailable", "DISCONNECT device then expect DEVICE_UNAVAILABLE",

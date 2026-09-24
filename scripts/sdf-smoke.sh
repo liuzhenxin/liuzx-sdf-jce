@@ -21,6 +21,7 @@
 #   SMOKE_CHECK_API_FACADE  true|false  run org.liuzx.jce.api facade checks (default: true)
 #                           (spec spelling "SMOKE_CHECK_API_FAÇADE" is normalised to ASCII here)
 #   SMOKE_BAD_PIN           deliberately wrong PIN, used to trigger AUTHORIZATION_FAILED
+#   SMOKE_EXPECT_AUTH_FAIL_WITHOUT_PIN=true  trigger AUTHORIZATION_FAILED by omitting the PIN
 #   SMOKE_MISSING_INDEX     non-existent key index, used to trigger KEY_NOT_FOUND
 #   SMOKE_SKIP_BUILD=1      do not run 'mvn package'
 #   SMOKE_MAVEN_OPTS        extra maven flags (default: -o -q)
@@ -125,6 +126,7 @@ JAVA_OPTS=(-Dfile.encoding=UTF-8 "-Dliuzx.sdf.vendor=${SMOKE_VENDOR}")
 [[ -n "${SMOKE_PIN:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.pin=${SMOKE_PIN}")
 [[ -n "${SMOKE_CHECK_API_FACADE:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.apiFacade=${SMOKE_CHECK_API_FACADE}")
 [[ -n "${SMOKE_BAD_PIN:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.badPin=${SMOKE_BAD_PIN}")
+[[ -n "${SMOKE_EXPECT_AUTH_FAIL_WITHOUT_PIN:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.expectAuthorizationFailWithoutPin=${SMOKE_EXPECT_AUTH_FAIL_WITHOUT_PIN}")
 [[ -n "${SMOKE_MISSING_INDEX:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.missingIndex=${SMOKE_MISSING_INDEX}")
 
 echo "[smoke] arch=${ARCH} os=${OS_NAME} vendor=${SMOKE_VENDOR}"
