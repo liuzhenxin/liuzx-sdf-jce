@@ -32,7 +32,8 @@ class SdfErrorCategoryMappingTest {
                 SdfErrorMapper.map(SDFErrorConstants.SDR_KEYNOTEXIST));
         assertEquals(SdfErrorCategory.KEY_USAGE_MISMATCH,
                 SdfErrorMapper.map(SDFErrorConstants.SDR_KEYTYPEERR));
-        assertEquals(SdfErrorCategory.KEY_USAGE_MISMATCH,
+        // Shudun reports a missing key as SDR_KEYERR (0x01000015), not SDR_KEYNOTEXIST.
+        assertEquals(SdfErrorCategory.KEY_NOT_FOUND,
                 SdfErrorMapper.map(SDFErrorConstants.SDR_KEYERR));
     }
 

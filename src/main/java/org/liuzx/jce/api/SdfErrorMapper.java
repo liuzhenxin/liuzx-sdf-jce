@@ -27,9 +27,11 @@ final class SdfErrorMapper {
             case SDFErrorConstants.SDR_HSM_NOT_READY:
                 return SdfErrorCategory.DEVICE_BUSY;
             case SDFErrorConstants.SDR_KEYNOTEXIST:
+            case SDFErrorConstants.SDR_KEYERR:
+                // Shudun reports a missing/retrieval-failed key as SDR_KEYERR (0x01000015),
+                // not SDR_KEYNOTEXIST, so both map to KEY_NOT_FOUND.
                 return SdfErrorCategory.KEY_NOT_FOUND;
             case SDFErrorConstants.SDR_KEYTYPEERR:
-            case SDFErrorConstants.SDR_KEYERR:
                 return SdfErrorCategory.KEY_USAGE_MISMATCH;
             case SDFErrorConstants.SDR_ALGNOTSUPPORT:
             case SDFErrorConstants.SDR_ALGMODNOTSUPPORT:

@@ -71,8 +71,8 @@ public SDFRSAPrivateKey(int, char[], RSAPublicKey)   // 标准类型，但仍须
 |---|---|---|
 | `SDR_COMMFAIL` (0x01000003) | `DEVICE_UNAVAILABLE` | true |
 | `SDR_HSM_NOT_READY` (0x01000403) | `DEVICE_BUSY` | true |
-| `SDR_KEYNOTEXIST` (0x01000008) | `KEY_NOT_FOUND` | false |
-| `SDR_KEYTYPEERR` / `SDR_KEYERR` | `KEY_USAGE_MISMATCH` | false |
+| `SDR_KEYNOTEXIST` (0x01000008) / `SDR_KEYERR` (0x01000015) | `KEY_NOT_FOUND` | false |
+| `SDR_KEYTYPEERR` (0x01000014) | `KEY_USAGE_MISMATCH` | false |
 | `SDR_ALGNOTSUPPORT` / `SDR_ALGMODNOTSUPPORT` | `ALGORITHM_UNSUPPORTED` | false |
 | `SDR_PARDENY` / `SDR_PRKRERR` | `AUTHORIZATION_FAILED` | false |
 | `SDR_INARGERR` / `SDR_OUTARGERR` | `INPUT_TOO_LARGE` | false |
@@ -80,6 +80,12 @@ public SDFRSAPrivateKey(int, char[], RSAPublicKey)   // 标准类型，但仍须
 | 其余 | `OPERATION_FAILED` | false |
 
 > 该映射是研究建议，最终以实现与真机验证为准（验收标准只要求至少覆盖 4 类）。
+>
+> **真机修正（2026-09-24，数盾 211.88.20.91）**：数盾对“范围内不存在的索引”返回
+> `0x01000015`（`SDR_KEYERR`，“密钥获取异常”）而非 `SDR_KEYNOTEXIST`，因此
+> `SDR_KEYERR` 改映射为 `KEY_NOT_FOUND`；越界索引返回 `0x0100001D`（`SDR_INARGERR`）→
+> `INPUT_TOO_LARGE`；密钥类型不匹配返回 `0x01000014`（`SDR_KEYTYPEERR`）→
+> `KEY_USAGE_MISMATCH`。
 
 ## 6. 验证架构
 
