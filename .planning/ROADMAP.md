@@ -10,7 +10,7 @@
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: 消费方 API Façade** - 新增 `org.liuzx.jce.api` 稳定公开包，解除 SVS Phase 2 阻塞
+- [x] **Phase 1: 消费方 API Façade** - 新增 `org.liuzx.jce.api` 稳定公开包，解除 SVS Phase 2 阻塞 (completed 2026-09-24)
 - [ ] **Phase 2: 凭据与密钥安全** - 移除硬编码签名凭据，轮换密钥，收敛 PIN/配置暴露面
 - [ ] **Phase 3: 可复现构建与依赖签名** - 发布流程脚本化，依赖签名与版本解耦
 - [ ] **Phase 4: 测试基线与 CI 门禁** - 硬件无关单测默认运行，补负路径测试，接入 CI
@@ -37,7 +37,7 @@ Plans:
 - [x] 01-01: 公开类型骨架（错误分类、异常、脱敏值对象、反射审计）
 - [x] 01-02: 门面接口、入口工厂、公钥导出与 PIN 生命周期
 - [x] 01-03: signSm2 / signSm2Digest / signRsa 语义与 UserID 单一来源
-- [ ] 01-04: 反射审计硬门禁、冒烟扩展、真机验签与 1.1.5 发布
+- [x] 01-04: 反射审计硬门禁、冒烟扩展、真机验签与 1.1.5 发布
 
 ### Phase 2: 凭据与密钥安全
 **Goal**: 让签名密钥、PIN 与设备配置不再以公开弱凭据形式存在，且发布路径可审计
@@ -110,7 +110,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. 消费方 API Façade | 3/4 | In Progress|  |
+| 1. 消费方 API Façade | 4/4 | Complete   | 2026-09-24 |
 | 2. 凭据与密钥安全 | 0/0 | Not started | - |
 | 3. 可复现构建与依赖签名 | 0/0 | Not started | - |
 | 4. 测试基线与 CI 门禁 | 0/0 | Not started | - |

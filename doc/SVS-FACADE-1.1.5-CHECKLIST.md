@@ -12,20 +12,23 @@
 
 ## 实施清单
 
-- [ ] 新增稳定公开包 `org.liuzx.jce.api`（仅 JDK 类型，不含 JNA / Spring / Jackson）
-- [ ] `SdfErrorCategory` 枚举，与 SVS 九类稳定分类 1:1 对应
-- [ ] `SdfException`，携带分类 + 仅十六进制码的 `internalDetail`
-- [ ] `SdfDeviceInfo` record，含 `toSafeString()`，**不含**序列号访问器
-- [ ] `SdfCapabilities` record，公开 `sm2DefaultUserId` 与会话池状态
-- [ ] `SdfDevice` 接口：`deviceInfo` / `capabilities` / `exportSignPublicKey` / `signSm2` / `signSm2Digest` / `signRsa` / `close`
-- [ ] `SdfDevices` 入口工厂，调用方无需提供 `SDFLibrary`、`Pointer` 或会话句柄
-- [ ] `exportSignPublicKey(int)` 返回 X.509 SubjectPublicKeyInfo（**解除阻塞的关键项**）
-- [ ] `signSm2Digest` 直接把入参作为 `e` 交给 `SDF_InternalSign_ECC`，**不得**再次哈希
-- [ ] `SM2SignatureSpi.DEFAULT_USER_ID` 提取为可读取值并进入 `SdfCapabilities`
-- [ ] 私钥访问权按需申请、`finally` 释放；**不得**按会话或按索引缓存 PIN
-- [ ] 反射审计：`org.liuzx.jce.api` 公开签名不出现 JNA / `Path` / `File` / `Pointer` / `PrivateKey`
-- [ ] 真机验证：`signSm2` / `signSm2Digest` / `signRsa` 输出可被独立软件验签器验证通过
-- [ ] 发布 1.1.5，并确认 `liuzx-svs` 的 `DeviceDependencyContractTest` 通过
+- [x] 新增稳定公开包 `org.liuzx.jce.api`（仅 JDK 类型，不含 JNA / Spring / Jackson）
+- [x] `SdfErrorCategory` 枚举，与 SVS 九类稳定分类 1:1 对应
+- [x] `SdfException`，携带分类 + 仅十六进制码的 `internalDetail`
+- [x] `SdfDeviceInfo` record，含 `toSafeString()`，**不含**序列号访问器
+- [x] `SdfCapabilities` record，公开 `sm2DefaultUserId` 与会话池状态
+- [x] `SdfDevice` 接口：`deviceInfo` / `capabilities` / `exportSignPublicKey` / `signSm2` / `signSm2Digest` / `signRsa` / `close`
+- [x] `SdfDevices` 入口工厂，调用方无需提供 `SDFLibrary`、`Pointer` 或会话句柄
+- [x] `exportSignPublicKey(int)` 返回 X.509 SubjectPublicKeyInfo（**解除阻塞的关键项**）
+- [x] `signSm2Digest` 直接把入参作为 `e` 交给 `SDF_InternalSign_ECC`，**不得**再次哈希
+- [x] `SM2SignatureSpi.DEFAULT_USER_ID` 提取为可读取值并进入 `SdfCapabilities`
+- [x] 私钥访问权按需申请、`finally` 释放；**不得**按会话或按索引缓存 PIN
+- [x] 反射审计：`org.liuzx.jce.api` 公开签名不出现 JNA / `Path` / `File` / `Pointer` / `PrivateKey`
+- [x] 真机验证：`signSm2` / `signSm2Digest` / `signRsa` 输出可被独立软件验签器验证通过
+- [ ] 发布 1.1.5，并确认 `liuzx-svs` 的 `DeviceDependencyContractTest` 通过 — 本地 1.1.5-SNAPSHOT 已安装且契约测试 7/7 通过；Maven Central 发布待凭据
+
+> 注：`SdfDeviceInfo` / `SdfCapabilities` 按已批准的方案 B 实现为 Java 8 兼容的不可变 final 类
+> （公开访问器契约与 record 等价，不含 `record` 关键字）。SVS 契约测试不要求 record。
 
 ---
 

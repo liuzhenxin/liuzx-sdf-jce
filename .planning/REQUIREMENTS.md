@@ -94,19 +94,19 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| API-01 | Phase 1 | Pending |
-| API-02 | Phase 1 | Pending |
-| API-03 | Phase 1 | Pending |
-| API-04 | Phase 1 | Pending |
-| API-05 | Phase 1 | Pending |
-| API-06 | Phase 1 | Pending |
-| API-07 | Phase 1 | Pending |
-| API-08 | Phase 1 | Pending |
-| API-09 | Phase 1 | Pending |
-| API-10 | Phase 1 | Pending |
-| API-11 | Phase 1 | Pending |
-| API-12 | Phase 1 | Pending |
-| API-13 | Phase 1 | Pending |
+| API-01 | Phase 1 | Complete |
+| API-02 | Phase 1 | Complete |
+| API-03 | Phase 1 | Complete |
+| API-04 | Phase 1 | Complete |
+| API-05 | Phase 1 | Complete |
+| API-06 | Phase 1 | Complete |
+| API-07 | Phase 1 | Complete |
+| API-08 | Phase 1 | Complete |
+| API-09 | Phase 1 | Complete |
+| API-10 | Phase 1 | Complete |
+| API-11 | Phase 1 | Complete |
+| API-12 | Phase 1 | Complete |
+| API-13 | Phase 1 | Pending（本地已通过 SVS 契约；Central 发布待凭据） |
 | SEC-01 | Phase 2 | Pending |
 | SEC-02 | Phase 2 | Pending |
 | SEC-03 | Phase 2 | Pending |
