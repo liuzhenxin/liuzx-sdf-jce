@@ -39,7 +39,7 @@ Plans:
 - [x] 01-03: signSm2 / signSm2Digest / signRsa 语义与 UserID 单一来源
 - [x] 01-04: 反射审计硬门禁、冒烟扩展、真机验签与 1.1.5 发布
 
-### Phase 2: 凭据与密钥安全
+### Phase 2: 凭据与密钥安全 (credential-security)
 **Goal**: 让签名密钥、PIN 与设备配置不再以公开弱凭据形式存在，且发布路径可审计
 **Depends on**: Phase 1
 **Requirements**: [SEC-01, SEC-02, SEC-03, SEC-04]
@@ -48,7 +48,13 @@ Plans:
   2. JCE 签名密钥库使用新的强口令，且存在一份可复现的密钥生成/轮换步骤文档
   3. 内部密钥测试与压力测试不再通过命令行 `-D` 或位置参数接收 PIN
   4. 冒烟打包默认不包含真实设备凭据配置，或需显式开关且打印告警
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 02-01: 外部化 JAR 签名凭据（settings.xml `jce-signing` + 静态断言）
+- [ ] 02-02: PIN 改为环境变量/交互输入，移除 argv 与位置参数
+- [ ] 02-03: 冒烟打包默认脱敏 + `PACK_INCLUDE_CONF` 显式开关与告警
+- [ ] 02-04: 轮换签名密钥库为强口令并文档化（含人工步骤）
 
 ### Phase 3: 可复现构建与依赖签名
 **Goal**: 依赖升级不再悄悄破坏 JCE 认证，发布流程可在干净环境复现
