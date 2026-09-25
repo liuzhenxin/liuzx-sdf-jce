@@ -29,6 +29,11 @@ Thumbs.db
 # Sensitive files
 keystore.jks
 *.jks
+# 密钥库备份（含旧口令）绝不入库
+keystore.jks.bak*
+*.jks.bak*
+*.p12
+*.pfx
 liuzx-jce.properties
 
 # HSM vendor materials (see HSM/README.md): never commit native libs or real device
