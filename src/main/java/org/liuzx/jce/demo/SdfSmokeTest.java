@@ -46,8 +46,8 @@ import java.util.List;
  *
  * <p>Supported properties:</p>
  * <ul>
- *   <li>{@code liuzx.sdf.smoke.sm2SignIndex} + {@code liuzx.sdf.smoke.pin}</li>
- *   <li>{@code liuzx.sdf.smoke.rsaSignIndex} + {@code liuzx.sdf.smoke.pin}</li>
+ *   <li>{@code liuzx.sdf.smoke.sm2SignIndex} + 环境变量 {@code LIUZX_SMOKE_PIN}</li>
+ *   <li>{@code liuzx.sdf.smoke.rsaSignIndex} + 环境变量 {@code LIUZX_SMOKE_PIN}</li>
  *   <li>{@code liuzx.sdf.smoke.sm4KeyIndex}</li>
  * </ul>
  */
@@ -165,8 +165,10 @@ public final class SdfSmokeTest {
             }
         });
 
-        runFacadeChecks();
-        runInternalChecks();
+        final char[] pin = smokePin();
+        final String badPin = smokeBadPin();
+        runFacadeChecks(pin, badPin);
+        runInternalChecks(pin);
         summary();
         shutdownSessionManager();
         System.exit(FAILED.isEmpty() ? 0 : 1);
@@ -186,10 +188,33 @@ public final class SdfSmokeTest {
         }
     }
 
-    private static void runInternalChecks() {
-        final char[] pin = System.getProperty("liuzx.sdf.smoke.pin") == null
-                ? null : System.getProperty("liuzx.sdf.smoke.pin").toCharArray();
+    /**
+     * 从环境变量 {@code LIUZX_SMOKE_PIN} 读取 PIN。旧的系统属性
+     * {@code liuzx.sdf.smoke.pin} 会被忽略（它出现在 {@code ps} 中）。
+     */
+    private static char[] smokePin() {
+        if (System.getProperty("liuzx.sdf.smoke.pin") != null) {
+            System.out.println("[smoke] WARN: -Dliuzx.sdf.smoke.pin is deprecated and visible in ps; "
+                    + "use the LIUZX_SMOKE_PIN environment variable instead (value ignored)");
+        }
+        String value = System.getenv("LIUZX_SMOKE_PIN");
+        return (value == null || value.isEmpty()) ? null : value.toCharArray();
+    }
 
+    /**
+     * 从环境变量 {@code LIUZX_SMOKE_BAD_PIN} 读取用于触发 AUTHORIZATION_FAILED 的错误 PIN。
+     * 旧的系统属性 {@code liuzx.sdf.smoke.badPin} 会被忽略。
+     */
+    private static String smokeBadPin() {
+        if (System.getProperty("liuzx.sdf.smoke.badPin") != null) {
+            System.out.println("[smoke] WARN: -Dliuzx.sdf.smoke.badPin is deprecated and visible in ps; "
+                    + "use LIUZX_SMOKE_BAD_PIN instead (value ignored)");
+        }
+        String value = System.getenv("LIUZX_SMOKE_BAD_PIN");
+        return (value == null || value.isEmpty()) ? null : value;
+    }
+
+    private static void runInternalChecks(final char[] pin) {
         final int sm2SignIndex = Integer.getInteger("liuzx.sdf.smoke.sm2SignIndex", -1);
         optional("sm2-sign-internal", "internal SM2 sign index " + sm2SignIndex, sm2SignIndex > 0, () -> {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("SM2", PROVIDER);
@@ -224,15 +249,12 @@ public final class SdfSmokeTest {
      * {@code -Dliuzx.sdf.smoke.apiFacade=false}. PIN exposure: {@code SMOKE_BAD_PIN} is used
      * only to trigger AUTHORIZATION_FAILED and is never logged.
      */
-    private static void runFacadeChecks() {
+    private static void runFacadeChecks(final char[] pin, final String badPin) {
         final boolean enabled = !"false".equalsIgnoreCase(
                 System.getProperty("liuzx.sdf.smoke.apiFacade", "true"));
         final int sm2SignIndex = Integer.getInteger("liuzx.sdf.smoke.sm2SignIndex", -1);
         final int rsaSignIndex = Integer.getInteger("liuzx.sdf.smoke.rsaSignIndex", -1);
         final int missingIndex = Integer.getInteger("liuzx.sdf.smoke.missingIndex", 990001);
-        final String badPin = System.getProperty("liuzx.sdf.smoke.badPin");
-        final char[] pin = System.getProperty("liuzx.sdf.smoke.pin") == null
-                ? null : System.getProperty("liuzx.sdf.smoke.pin").toCharArray();
         final boolean expectDeviceUnavailable = Boolean.parseBoolean(
                 System.getProperty("liuzx.sdf.smoke.expectDeviceUnavailable", "false"));
         final boolean expectAuthFailWithoutPin = Boolean.parseBoolean(
