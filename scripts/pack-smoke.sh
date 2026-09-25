@@ -172,7 +172,9 @@ JAVA_OPTS+=("-Dliuzx.sdf.vendor-config.path=${CONF_PROPERTY}")
 [[ -n "\${SMOKE_SM2_SIGN_INDEX:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.sm2SignIndex=\${SMOKE_SM2_SIGN_INDEX}")
 [[ -n "\${SMOKE_RSA_SIGN_INDEX:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.rsaSignIndex=\${SMOKE_RSA_SIGN_INDEX}")
 [[ -n "\${SMOKE_SM4_KEY_INDEX:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.sm4KeyIndex=\${SMOKE_SM4_KEY_INDEX}")
-[[ -n "\${SMOKE_PIN:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.pin=\${SMOKE_PIN}")
+# PIN is exported, never passed via -D (argv is visible in ps).
+[[ -n "\${SMOKE_PIN:-}" ]] && export LIUZX_SMOKE_PIN="\${SMOKE_PIN}"
+[[ -n "\${SMOKE_BAD_PIN:-}" ]] && export LIUZX_SMOKE_BAD_PIN="\${SMOKE_BAD_PIN}"
 
 echo "[smoke] bundle vendor=${PACK_VENDOR} arch=${PACK_ARCH}"
 echo "[smoke] library=lib/${LIB_BASENAME}  (rsaKeyLayout=${RSA_LAYOUT})"

@@ -17,10 +17,10 @@
 #   SMOKE_SM2_SIGN_INDEX    optional internal SM2 sign key index
 #   SMOKE_RSA_SIGN_INDEX    optional internal RSA sign key index
 #   SMOKE_SM4_KEY_INDEX     optional internal SM4 key index
-#   SMOKE_PIN               PIN for internal keys
+#   SMOKE_PIN               PIN for internal keys (exported as LIUZX_SMOKE_PIN, never on argv)
 #   SMOKE_CHECK_API_FACADE  true|false  run org.liuzx.jce.api facade checks (default: true)
 #                           (spec spelling "SMOKE_CHECK_API_FAÇADE" is normalised to ASCII here)
-#   SMOKE_BAD_PIN           deliberately wrong PIN, used to trigger AUTHORIZATION_FAILED
+#   SMOKE_BAD_PIN           deliberately wrong PIN (exported as LIUZX_SMOKE_BAD_PIN)
 #   SMOKE_EXPECT_AUTH_FAIL_WITHOUT_PIN=true  trigger AUTHORIZATION_FAILED by omitting the PIN
 #   SMOKE_MISSING_INDEX     non-existent key index, used to trigger KEY_NOT_FOUND
 #   SMOKE_SKIP_BUILD=1      do not run 'mvn package'
@@ -123,9 +123,10 @@ JAVA_OPTS=(-Dfile.encoding=UTF-8 "-Dliuzx.sdf.vendor=${SMOKE_VENDOR}")
 [[ -n "${SMOKE_SM2_SIGN_INDEX:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.sm2SignIndex=${SMOKE_SM2_SIGN_INDEX}")
 [[ -n "${SMOKE_RSA_SIGN_INDEX:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.rsaSignIndex=${SMOKE_RSA_SIGN_INDEX}")
 [[ -n "${SMOKE_SM4_KEY_INDEX:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.sm4KeyIndex=${SMOKE_SM4_KEY_INDEX}")
-[[ -n "${SMOKE_PIN:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.pin=${SMOKE_PIN}")
+# PINs are exported, never passed via -D: the java argv is visible in ps.
+[[ -n "${SMOKE_PIN:-}" ]] && export LIUZX_SMOKE_PIN="${SMOKE_PIN}"
 [[ -n "${SMOKE_CHECK_API_FACADE:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.apiFacade=${SMOKE_CHECK_API_FACADE}")
-[[ -n "${SMOKE_BAD_PIN:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.badPin=${SMOKE_BAD_PIN}")
+[[ -n "${SMOKE_BAD_PIN:-}" ]] && export LIUZX_SMOKE_BAD_PIN="${SMOKE_BAD_PIN}"
 [[ -n "${SMOKE_EXPECT_AUTH_FAIL_WITHOUT_PIN:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.expectAuthorizationFailWithoutPin=${SMOKE_EXPECT_AUTH_FAIL_WITHOUT_PIN}")
 [[ -n "${SMOKE_MISSING_INDEX:-}" ]] && JAVA_OPTS+=("-Dliuzx.sdf.smoke.missingIndex=${SMOKE_MISSING_INDEX}")
 
