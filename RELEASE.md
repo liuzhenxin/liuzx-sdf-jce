@@ -68,11 +68,19 @@ gpg --keyserver keys.openpgp.org --send-keys <KEYID>
            <gpg.passphrase>你的GPG口令</gpg.passphrase>
          </properties>
        </profile>
+       <profile>
+         <id>jce-signing</id>
+         <properties>
+           <jce.storepass>JCE 密钥库强口令</jce.storepass>
+           <jce.keypass>JCE 密钥强口令（可与 storepass 相同）</jce.keypass>
+         </properties>
+       </profile>
      </profiles>
    </settings>
    ```
    - `<server id="central">` 必须与 pom release profile 里的 `publishingServerId` 一致。
    - `<profile>` 无 activation 即常驻生效，`${gpg.keyname}` / `${gpg.passphrase}` 自动注入。
+   - `jce-signing` 提供 JCE 签名密钥库口令（`${jce.storepass}` / `${jce.keypass}`）；pom 中不再有任何明文签名口令。
 3. 安全提示：
    - 该文件含口令，**不要提交到任何仓库**。
    - 更安全的方式：settings.xml 不写 `gpg.passphrase`，改用 gpg-agent 缓存口令（首次发布时弹窗输入），pom 里已带 `--pinentry-mode loopback`。
@@ -80,6 +88,22 @@ gpg --keyserver keys.openpgp.org --send-keys <KEYID>
    ```bash
    mvn help:effective-pom -Prelease,gpg-signing | grep -A3 "gpg-plugin"
    ```
+
+### 3.1 JCE 签名凭据（`jce-signing`）
+
+JCE 要求 provider jar 及其依赖 jar 由同一签名者签名（见 `pom.xml` 的 `maven-jarsigner-plugin` 与
+`maven-antrun-plugin`）。口令一律从 `settings.xml` 的 `jce-signing` profile 注入：
+
+- `jce.storepass` / `jce.keypass`：密钥库与密钥口令（**必填**，无默认值）。
+- `jce.keystore` / `jce.keystore.alias` / `jce.tsa`：可选覆盖，默认分别为
+  `${project.basedir}/keystore.jks`、`dayou`、`http://timestamp.sectigo.com`。
+- CI 可用 `-Djce.storepass=... -Djce.keypass=...` 覆盖（注意 `-D` 会出现在进程命令行）。
+
+**缺凭据的症状**：`mvn package` 在 `package` 阶段被 `maven-enforcer-plugin` 拦截，报
+`JCE signing credentials missing: 'jce.storepass'`。修复：按上方在 `~/.m2/settings.xml` 添加
+`jce-signing` profile。
+
+密钥生成与轮换步骤见 [`doc/SIGNING-KEY-ROTATION.md`](doc/SIGNING-KEY-ROTATION.md)。
 
 ## 4. 发布
 
