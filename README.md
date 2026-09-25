@@ -158,7 +158,7 @@ SMOKE_SM2_SIGN_INDEX=21 SMOKE_RSA_SIGN_INDEX=11 SMOKE_SM4_KEY_INDEX=1 \
 ### 4. 打包到密码机主机运行
 
 本机与密码机不是同一台（或不同架构）时，用 `scripts/pack-smoke.sh` 生成自包含测试包，
-内含 JAR、JNA/Gson 依赖、厂商原生库（若未随 JAR 内置）、可编辑的设备配置和自动生成的
+内含 JAR、JNA/Gson 依赖、厂商原生库（若未随 JAR 内置）、**脱敏配置模板**和自动生成的
 `run-smoke.sh`：
 
 ```bash
@@ -179,16 +179,24 @@ scp target/liuzx-sdf-jce-smoke-shudun-aarch64.tar.gz user@hsm-host:/tmp/
 # 目标主机：
 tar -xzf /tmp/liuzx-sdf-jce-smoke-shudun-aarch64.tar.gz -C /opt
 cd /opt/liuzx-sdf-jce-smoke-shudun-aarch64
-# 编辑 conf/ 里的密码机 IP/端口
+# conf/<vendor>.ini 是脱敏模板，把 <HOST>/<PORT> 填为密码机地址
 vi conf/sdhsm.ini
 SMOKE_SM4_KEY_INDEX=1 ./run-smoke.sh
 ```
 
-变量：`PACK_VENDOR`、`PACK_ARCH`（`aarch64`/`x86_64`）、`PACK_LIBRARY_PATH`、
-`PACK_CONFIG_PATH`、`PACK_OUT_DIR`、`PACK_SKIP_BUILD=1`。
+默认产物**不含**真实设备配置（仅占位模板与 `*.ini.example`）。若确实需要随包携带真实配置，
+用 `PACK_INCLUDE_CONF=1` 重新打包（会打印醒目警告，且该测试包不得外发）：
 
-> 安全：默认打包产物只包含脱敏配置模板，不含真实设备配置（见下）。若使用真实配置，
-> 不要外发或提交测试包；`SMOKE_PIN` 经环境变量传入，不出现在 `java` 进程参数中。
+```bash
+PACK_VENDOR=Shudun PACK_ARCH=aarch64 PACK_INCLUDE_CONF=1 scripts/pack-smoke.sh
+```
+
+变量：`PACK_VENDOR`、`PACK_ARCH`（`aarch64`/`x86_64`）、`PACK_LIBRARY_PATH`、
+`PACK_CONFIG_PATH`、`PACK_INCLUDE_CONF`、`PACK_OUT_DIR`、`PACK_SKIP_BUILD=1`。
+
+> 安全：默认打包产物只包含脱敏配置模板，不含真实设备配置；仅当 `PACK_INCLUDE_CONF=1`
+> 时才复制真实配置（可能含凭据/IP），且不得外发或提交。`SMOKE_PIN` 经环境变量传入，
+> 不出现在 `java` 进程参数中。
 >
 > 内部密钥压力测试的 PIN 同样不再作为命令行参数：使用交互输入或
 > `LIUZX_STRESS_PIN=... ./run.sh stress <线程数> <时长> <密钥索引>`。
