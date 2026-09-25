@@ -11,7 +11,7 @@
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: 消费方 API Façade** - 新增 `org.liuzx.jce.api` 稳定公开包，解除 SVS Phase 2 阻塞 (completed 2026-09-24)
-- [ ] **Phase 2: 凭据与密钥安全** - 移除硬编码签名凭据，轮换密钥，收敛 PIN/配置暴露面
+- [x] **Phase 2: 凭据与密钥安全** - 移除硬编码签名凭据，轮换密钥，收敛 PIN/配置暴露面 (completed 2026-09-25)
 - [ ] **Phase 3: 可复现构建与依赖签名** - 发布流程脚本化，依赖签名与版本解耦
 - [ ] **Phase 4: 测试基线与 CI 门禁** - 硬件无关单测默认运行，补负路径测试，接入 CI
 - [ ] **Phase 5: 文档与指导一致性** - README 与三份指导文档对齐代码现状
@@ -54,7 +54,7 @@ Plans:
 - [x] 02-01: 外部化 JAR 签名凭据（settings.xml `jce-signing` + 静态断言）
 - [x] 02-02: PIN 改为环境变量/交互输入，移除 argv 与位置参数
 - [x] 02-03: 冒烟打包默认脱敏 + `PACK_INCLUDE_CONF` 显式开关与告警
-- [ ] 02-04: 轮换签名密钥库为强口令并文档化（含人工步骤）
+- [x] 02-04: 轮换签名密钥库为强口令并文档化（含人工步骤）
 
 ### Phase 3: 可复现构建与依赖签名
 **Goal**: 依赖升级不再悄悄破坏 JCE 认证，发布流程可在干净环境复现
@@ -117,7 +117,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. 消费方 API Façade | 4/4 | Complete   | 2026-09-24 |
-| 2. 凭据与密钥安全 | 3/4 | In Progress|  |
+| 2. 凭据与密钥安全 | 4/4 | Complete   | 2026-09-25 |
 | 3. 可复现构建与依赖签名 | 0/0 | Not started | - |
 | 4. 测试基线与 CI 门禁 | 0/0 | Not started | - |
 | 5. 文档与指导一致性 | 0/0 | Not started | - |

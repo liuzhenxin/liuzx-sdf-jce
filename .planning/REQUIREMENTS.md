@@ -107,10 +107,10 @@
 | API-11 | Phase 1 | Complete |
 | API-12 | Phase 1 | Complete |
 | API-13 | Phase 1 | Complete |
-| SEC-01 | Phase 2 | Pending |
-| SEC-02 | Phase 2 | Pending |
-| SEC-03 | Phase 2 | Pending |
-| SEC-04 | Phase 2 | Pending |
+| SEC-01 | Phase 2 | Complete |
+| SEC-02 | Phase 2 | Pending（已暂缓：暂以历史口令恢复打包，轮换待执行） |
+| SEC-03 | Phase 2 | Complete |
+| SEC-04 | Phase 2 | Complete |
 | BUILD-04 | Phase 3 | Pending |
 | BUILD-02 | Phase 3 | Pending |
 | BUILD-01 | Phase 4 | Pending |
