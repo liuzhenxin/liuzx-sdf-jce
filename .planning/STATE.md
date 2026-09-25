@@ -83,7 +83,7 @@ None yet.
 - Phase 1 交付后需与 `liuzx-svs` 确认 `DeviceDependencyContractTest` 已解除 BLOCKED；`doc/SVS-FACADE-1.1.5-CHECKLIST.md` 是两仓库共享副本，改动需同步。
 - **Phase 1 / API-13（待发布）**：本地 `1.1.5-SNAPSHOT` 已 install 且 `liuzx-svs` 契约测试 7/7 通过；向 Maven Central 发布正式 `1.1.5` 需 GPG 与 Central User Token。
 - **Phase 1 / 数盾 SM2（非阻塞）**：211.88.20.91 索引 1–10 的 SM2 密钥对提供的口令均返回 `0x18`；SM2 路径已改由 DYSX 设备验证通过。待确认时不影响结论。详见 `doc/SVS-FACADE-1.1.5-ACCEPTANCE.md`。
-- **Phase 2 / SEC-02（未完成，安全风险）**：按用户决定暂缓密钥库轮换，`~/.m2/settings.xml` 的 `jce-signing` 暂使用历史口令恢复打包。CONCERNS C1（弱口令）**仍存在**。轮换步骤见 `doc/SIGNING-KEY-ROTATION.md`，属 Phase 2 遗留项（见 `02-04-SUMMARY.md`）。
+- **Phase 2 / SEC-02（已完成）**：密钥库与密钥口令已轮换为强口令（仅存于 `~/.m2/settings.xml` 的 `jce-signing`），三个 JAR 重新签名并验证通过，受限 JCE 认证通过。旧密钥库备份 `keystore.jks.bak-*`（含旧弱口令）待删除/归档。详见 `doc/SIGNING-KEY-ROTATION.md` 与 `02-04-SUMMARY.md`。
 
 ## Deferred Items
 
