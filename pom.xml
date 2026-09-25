@@ -47,6 +47,11 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <main.class>org.liuzx.jce.demo.Main</main.class>
         <skipTests>true</skipTests>
+        <!-- JCE 签名凭据：口令（jce.storepass / jce.keypass）由 ~/.m2/settings.xml 的
+             jce-signing profile 或 -D 注入，绝不写入本文件。 -->
+        <jce.keystore>${project.basedir}/keystore.jks</jce.keystore>
+        <jce.keystore.alias>dayou</jce.keystore.alias>
+        <jce.tsa>http://timestamp.sectigo.com</jce.tsa>
     </properties>
 
     <dependencies>
@@ -76,6 +81,34 @@
 
     <build>
         <plugins>
+            <!-- 0. 打包前强制要求签名凭据已配置（仅在 package 阶段生效，便于无凭据时编译/测试） -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>require-signing-credentials</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireProperty>
+                                    <property>jce.storepass</property>
+                                    <message>JCE signing credentials missing: 'jce.storepass'. Configure a ~/.m2/settings.xml profile 'jce-signing' with &lt;jce.storepass&gt; and &lt;jce.keypass&gt; (see RELEASE.md).</message>
+                                </requireProperty>
+                                <requireProperty>
+                                    <property>jce.keypass</property>
+                                    <message>JCE signing credentials missing: 'jce.keypass'. Configure a ~/.m2/settings.xml profile 'jce-signing' with &lt;jce.storepass&gt; and &lt;jce.keypass&gt; (see RELEASE.md).</message>
+                                </requireProperty>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- 1. Copy all dependencies to target/lib -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -126,13 +159,14 @@
                             <goal>sign</goal>
                         </goals>
                         <configuration>
-                            <!-- By default, this signs the main artifact, which is what we want -->
+                            <!-- By default, this signs the main artifact, which is what we want.
+                                 口令来自 settings.xml 的 jce-signing profile，不写入本文件。 -->
                             <verbose>true</verbose>
-                            <keystore>${project.basedir}/keystore.jks</keystore>
-                            <alias>dayou</alias>
-                            <storepass>123456</storepass>
-                            <keypass>123456</keypass>
-                            <tsa>http://timestamp.sectigo.com</tsa>
+                            <keystore>${jce.keystore}</keystore>
+                            <alias>${jce.keystore.alias}</alias>
+                            <storepass>${jce.storepass}</storepass>
+                            <keypass>${jce.keypass}</keypass>
+                            <tsa>${jce.tsa}</tsa>
                         </configuration>
                     </execution>
                 </executions>
@@ -160,18 +194,18 @@
                         <configuration>
                             <target>
                                 <signjar jar="${project.build.directory}/lib/jna-5.10.0.jar"
-                                         alias="dayou"
-                                         storepass="123456"
-                                         keypass="123456"
-                                         keystore="${project.basedir}/keystore.jks"
-                                         tsaurl="http://timestamp.sectigo.com"
+                                         alias="${jce.keystore.alias}"
+                                         storepass="${jce.storepass}"
+                                         keypass="${jce.keypass}"
+                                         keystore="${jce.keystore}"
+                                         tsaurl="${jce.tsa}"
                                          lazy="true"/>
                                 <signjar jar="${project.build.directory}/lib/gson-2.9.0.jar"
-                                         alias="dayou"
-                                         storepass="123456"
-                                         keypass="123456"
-                                         keystore="${project.basedir}/keystore.jks"
-                                         tsaurl="http://timestamp.sectigo.com"
+                                         alias="${jce.keystore.alias}"
+                                         storepass="${jce.storepass}"
+                                         keypass="${jce.keypass}"
+                                         keystore="${jce.keystore}"
+                                         tsaurl="${jce.tsa}"
                                          lazy="true"/>
                             </target>
                         </configuration>
