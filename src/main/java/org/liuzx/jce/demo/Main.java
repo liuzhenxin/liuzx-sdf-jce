@@ -307,14 +307,29 @@ public class Main {
             int threads = Integer.parseInt(args[1]);
             int duration = Integer.parseInt(args[2]);
             int keyIndex = Integer.parseInt(args[3]);
-            char[] password = (args.length > 4) ? args[4].toCharArray() : null;
-            
+            char[] password = stressPin();
+
             StressTester tester = new StressTester(threads, duration, keyIndex, password);
             tester.run();
         } catch (Exception e) {
             logger.error("Failed to run stress test from command line.", e);
-            System.err.println("Usage: run.sh stress <numThreads> <durationSeconds> <keyIndex> [password]");
+            System.err.println("Usage: run.sh stress <numThreads> <durationSeconds> <keyIndex>"
+                    + "   (PIN via LIUZX_STRESS_PIN or interactive prompt)");
         }
+    }
+
+    /**
+     * 压力测试 PIN：优先读取环境变量 {@code LIUZX_STRESS_PIN}，否则交互输入。
+     * 不再从命令行位置参数读取（argv 对同机进程可见）。
+     */
+    private static char[] stressPin() {
+        String value = System.getenv("LIUZX_STRESS_PIN");
+        if (value != null && !value.isEmpty()) {
+            return value.toCharArray();
+        }
+        System.out.print(I18n.get("prompt.password") + " (optional): ");
+        char[] password = scanner.nextLine().toCharArray();
+        return password.length == 0 ? null : password;
     }
 
     // --- Helper Methods ---

@@ -151,6 +151,10 @@ SMOKE_SM2_SIGN_INDEX=21 SMOKE_RSA_SIGN_INDEX=11 SMOKE_SM4_KEY_INDEX=1 \
 `SMOKE_EXPECT_STRATEGY`、`SMOKE_PIN`、`SMOKE_SM2_SIGN_INDEX`、`SMOKE_RSA_SIGN_INDEX`、
 `SMOKE_SM4_KEY_INDEX`、`SMOKE_SKIP_BUILD=1`。
 
+> 安全：`SMOKE_PIN` 由脚本 `export` 为 `LIUZX_SMOKE_PIN` 环境变量，**不会出现在 `java` 进程的
+> 命令行参数中**（可直接用 `LIUZX_SMOKE_PIN=... ./scripts/sdf-smoke.sh`）。回归防护见
+> `scripts/verify-no-secret-in-argv.sh`。
+
 ### 4. 打包到密码机主机运行
 
 本机与密码机不是同一台（或不同架构）时，用 `scripts/pack-smoke.sh` 生成自包含测试包，
@@ -183,8 +187,11 @@ SMOKE_SM4_KEY_INDEX=1 ./run-smoke.sh
 变量：`PACK_VENDOR`、`PACK_ARCH`（`aarch64`/`x86_64`）、`PACK_LIBRARY_PATH`、
 `PACK_CONFIG_PATH`、`PACK_OUT_DIR`、`PACK_SKIP_BUILD=1`。
 
-> 安全：`conf/` 可能含设备凭据/证书，测试包不要外发或提交；`SMOKE_PIN` 会出现在
-> `java` 进程参数中。
+> 安全：默认打包产物只包含脱敏配置模板，不含真实设备配置（见下）。若使用真实配置，
+> 不要外发或提交测试包；`SMOKE_PIN` 经环境变量传入，不出现在 `java` 进程参数中。
+>
+> 内部密钥压力测试的 PIN 同样不再作为命令行参数：使用交互输入或
+> `LIUZX_STRESS_PIN=... ./run.sh stress <线程数> <时长> <密钥索引>`。
 
 ---
 
