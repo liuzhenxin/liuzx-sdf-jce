@@ -25,7 +25,7 @@
 - [x] 私钥访问权按需申请、`finally` 释放；**不得**按会话或按索引缓存 PIN
 - [x] 反射审计：`org.liuzx.jce.api` 公开签名不出现 JNA / `Path` / `File` / `Pointer` / `PrivateKey`
 - [x] 真机验证：`signSm2` / `signSm2Digest` / `signRsa` 输出可被独立软件验签器验证通过
-- [ ] 发布 1.1.5，并确认 `liuzx-svs` 的 `DeviceDependencyContractTest` 通过 — 本地 1.1.5-SNAPSHOT 已安装且契约测试 7/7 通过；Maven Central 发布待凭据
+- [x] 发布 1.1.5，并确认 `liuzx-svs` 的 `DeviceDependencyContractTest` 通过 — 1.1.5 已发布（deployment `f3f7714d-3fd8-4ab6-87c1-6b5e8636b68d`），正式 1.1.5 契约测试 7/7 通过
 
 > 注：`SdfDeviceInfo` / `SdfCapabilities` 按已批准的方案 B 实现为 Java 8 兼容的不可变 final 类
 > （公开访问器契约与 record 等价，不含 `record` 关键字）。SVS 契约测试不要求 record。

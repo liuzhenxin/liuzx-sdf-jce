@@ -22,7 +22,7 @@
 | API-10 RSA 签名 | ✅ | 数盾：`signRsa(11)` → 256B；OpenSSL `Verified OK` |
 | API-11 PIN 生命周期 | ✅ | 缺口令被拒、无 `char[]` 字段、每索引仅按需申请 |
 | API-12 错误分类 | ✅ | 四类均被真机错误触发（见 §3） |
-| API-13 发布 | ⏳ | 本地 1.1.5-SNAPSHOT 已安装且 **SVS 契约测试 7/7 通过**；Maven Central 发布待凭据 |
+| API-13 发布 | ✅ | `1.1.5` 已发布到 Maven Central（deployment `f3f7714d-3fd8-4ab6-87c1-6b5e8636b68d`，`autoPublish`）；tag `v1.1.5`；SVS 契约测试对正式 `1.1.5` 7/7 通过 |
 
 ### 冒烟结果
 
@@ -73,21 +73,31 @@
 
 ## 五、SVS 消费方契约
 
-在 `liuzx-svs` 仓将本地构建的 `liuzx-sdf-jce-1.1.5-SNAPSHOT.jar` 暴露到测试类路径后：
+在 `liuzx-svs` 仓将 `liuzx-sdf-jce` 暴露到测试类路径后：
 
 ```
 Tests run: 7, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-`BLOCKED on liuzx-sdf-jce 1.1.5` 已解除；`org.liuzx.jce.api` 的 6 个公开类型与 7 个门面方法、反射审计、无序列号访问器均通过。SVS 仓未做任何源码改动。
+对 `1.1.5-SNAPSHOT` 与**正式 `1.1.5`** 各跑一次，均 7/7 通过。`BLOCKED on liuzx-sdf-jce 1.1.5` 已解除；`org.liuzx.jce.api` 的 6 个公开类型与 7 个门面方法、反射审计、无序列号访问器均通过。SVS 仓未做任何源码改动。
 
-## 六、待办
+## 六、发布记录（1.1.5）
 
-1. **发布 1.1.5 到 Maven Central**（需 GPG 与 Central User Token），随后 SVS 以正式依赖重跑契约测试。
+- 命令：`./release.sh --version 1.1.5`
+- 结果：`mvn clean deploy -Prelease,gpg-signing` `BUILD SUCCESS`
+- Central 部署：`f3f7714d-3fd8-4ab6-87c1-6b5e8636b68d`，已 `validated`，`autoPublish=true`
+- Git：发布提交 `55a5cbc` + tag `v1.1.5`；随后回到 `1.1.6-SNAPSHOT`（提交 `039b1b8`）
+- 产物：主 jar、`-sources.jar`、`-javadoc.jar` 及各自 `.asc`
+- 首次尝试因 TSA `http://timestamp.sectigo.com` 瞬时不可达而失败；重试成功
+- 说明：本机 Maven 使用 Aliyun 镜像，对 `org.liuzx` 同步滞后，无法从本机独立验证 `repo1` 传播；以发布插件的 `validated` 与 `autoPublish` 为准
+
+## 七、待办
+
+1. **发布 1.1.5 到 Maven Central** — ✅ 已完成（见 §六）。
 2. 数盾 SM2 内部密钥口令/用途确认（不影响本次结论，SM2 已由 DYSX 验证）。
 
-## 七、安全说明
+## 八、安全说明
 
 - 本文不记录任何 PIN 明文；测试口令经 `-D` 传入。
 - 执行日志中出现的设备地址与序列号仅用于测试环境。

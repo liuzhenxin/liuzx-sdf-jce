@@ -106,7 +106,7 @@
 | API-10 | Phase 1 | Complete |
 | API-11 | Phase 1 | Complete |
 | API-12 | Phase 1 | Complete |
-| API-13 | Phase 1 | Pending（本地已通过 SVS 契约；Central 发布待凭据） |
+| API-13 | Phase 1 | Complete |
 | SEC-01 | Phase 2 | Pending |
 | SEC-02 | Phase 2 | Pending |
 | SEC-03 | Phase 2 | Pending |
